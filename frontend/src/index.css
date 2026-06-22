@@ -1,1 +1,86 @@
 @import "tailwindcss";
+
+@theme {
+  --color-white: #faf7f0;
+  --color-black: #000;
+
+  --color-gray-50: #faf7f0;
+  --color-gray-100: #f0ebe0;
+  --color-gray-200: #e0d8c6;
+  --color-gray-300: #c8bfaa;
+  --color-gray-400: #9a8e78;
+  --color-gray-500: #6b6355;
+  --color-gray-600: #4a4339;
+  --color-gray-700: #2d2720;
+  --color-gray-800: #1a1510;
+  --color-gray-900: #0d0805;
+
+  --color-blue-50: #ede5d5;
+  --color-blue-100: #ddd4c0;
+  --color-blue-200: #b8ad98;
+  --color-blue-300: #8a8070;
+  --color-blue-400: #6b6355;
+  --color-blue-500: #2d2720;
+  --color-blue-600: #1a1510;
+  --color-blue-700: #0d0805;
+
+  --color-green-50: #ede5d5;
+  --color-green-100: #ddd4c0;
+  --color-green-200: #b8ad98;
+  --color-green-300: #8a8070;
+  --color-green-400: #6b6355;
+  --color-green-500: #3a3228;
+  --color-green-600: #2d2720;
+
+  --color-red-400: #a0522d;
+  --color-red-500: #8b4513;
+  --color-red-600: #5c3020;
+
+  --font-sans: 'Georgia', 'Times New Roman', '宋体', 'SimSun', serif;
+  --font-mono: 'Courier New', 'Consolas', 'Liberation Mono', monospace;
+}
+
+body {
+  background-color: #f5f0e8;
+  background-image:
+    repeating-linear-gradient(
+      90deg, transparent, transparent 48px,
+      rgba(139, 119, 90, 0.02) 48px, rgba(139, 119, 90, 0.02) 49px
+    ),
+    repeating-linear-gradient(
+      0deg, transparent, transparent 48px,
+      rgba(139, 119, 90, 0.02) 48px, rgba(139, 119, 90, 0.02) 49px
+    ),
+    radial-gradient(ellipse at 50% 0%, rgba(200, 180, 150, 0.12) 0%, transparent 70%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* pencil-block: hand-drawn offset shadow on bordered blocks */
+[class*="border"][class*="rounded"]:not(body):not(html) {
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.04),
+    1px 1px 0 0 rgba(0,0,0,0.06),
+    -1px 0 0 0 rgba(0,0,0,0.02);
+}
+
+/* pencil-fill: subtle cross-hatch on filled blocks */
+[class*="bg-"][class*="text-white"],
+[class*="bg-"][class*="rounded"]:not(body):not(html) {
+  background-image:
+    repeating-linear-gradient(
+      45deg, transparent, transparent 3px,
+      rgba(0,0,0,0.015) 3px, rgba(0,0,0,0.015) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg, transparent, transparent 3px,
+      rgba(0,0,0,0.015) 3px, rgba(0,0,0,0.015) 4px
+    );
+}
+
+/* exclude overlay backdrops from pencil-fill */
+[class*="bg-black/"] {
+  background-image: none;
+}

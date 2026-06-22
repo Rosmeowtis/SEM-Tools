@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Callable
 from PIL import Image
 
+from studio.operations import apply_map_op
+
 
 def load_image(path: Path) -> np.ndarray:
     pil = Image.open(path).convert("RGB")
@@ -21,58 +23,6 @@ def save_image(img: np.ndarray, path: Path, quality: int = 85):
         Image.fromarray(img).save(path, quality=quality)
     else:
         Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).save(path, quality=quality)
-
-
-def apply_map_op(img: np.ndarray, op: dict) -> np.ndarray:
-    kind, params = op["kind"], op["params"]
-    if kind == "crop":
-        return img[params["y"]:params["y"]+params["h"], params["x"]:params["x"]+params["w"]]
-    elif kind == "resize":
-        interp = cv2.INTER_NEAREST if params.get("algorithm") == "nearest" else cv2.INTER_LINEAR
-        return cv2.resize(img, (params["w"], params["h"]), interpolation=interp)
-    elif kind == "grayscale":
-        if img.ndim == 3:
-            return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        return img
-    elif kind == "blur":
-        k = params.get("ksize", 3)
-        if k % 2 == 0: k += 1
-        return cv2.GaussianBlur(img, (k, k), 0)
-    elif kind == "threshold":
-        t = params.get("threshold", 127)
-        gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, t, 255, cv2.THRESH_BINARY)
-        return binary
-    elif kind == "morphology_ellipse":
-        t = cv2.MORPH_OPEN if params.get("type") == "open" else cv2.MORPH_CLOSE
-        k = params.get("ksize", 3)
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
-        return cv2.morphologyEx(img, t, kernel)
-    elif kind == "invert":
-        return cv2.bitwise_not(img)
-    elif kind == "format":
-        return img
-    elif kind == "auto_threshold":
-        gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten().astype(np.float32)
-        peak = int(np.argmax(hist))
-        left = 0
-        for i in range(peak):
-            if hist[i] > 0:
-                left = i
-                break
-        max_dist = -1.0
-        best_thresh = left
-        for i in range(left, peak):
-            dist = abs((peak - left) * (hist[i] - hist[left]) - (i - left) * (hist[peak] - hist[left]))
-            if dist > max_dist:
-                max_dist = dist
-                best_thresh = i
-        offset = params.get("offset", 0)
-        final_thresh = max(0, min(255, best_thresh + offset))
-        _, binary = cv2.threshold(gray, final_thresh, 255, cv2.THRESH_BINARY)
-        return binary
-    return img
 
 
 def _reduce_init(op: dict) -> dict:
