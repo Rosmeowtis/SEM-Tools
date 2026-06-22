@@ -1,6 +1,6 @@
 import type { Chain, Operation, Project, ResourceMeta } from "./types";
 
-const BASE = "/api";
+export const BASE = "/api";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
@@ -79,4 +79,7 @@ export const api = {
 
   previewUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`,
+
+  requestPreview: (pid: string, cid: string, rid?: string) =>
+    req<{ accepted?: boolean; cached?: boolean }>(`/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`, { method: "POST" }),
 };

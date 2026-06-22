@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import shutil
@@ -6,9 +7,9 @@ from pathlib import Path
 import cv2
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
-from engine import render_preview
+from engine import load_image, render_preview, save_image
 
 from database import (
     add_resource,
@@ -61,14 +62,12 @@ def _project_dir(pid: str, slug: str) -> Path:
 
 
 def _generate_thumbnail(src: str | Path, sha1: str):
-    img = cv2.imread(str(src))
-    if img is None:
-        return
+    img = load_image(Path(src))
     h, w = img.shape[:2]
     scale = 200 / max(h, w) if max(h, w) > 200 else 1.0
     if scale < 1:
         img = cv2.resize(img, (int(w * scale), int(h * scale)))
-    cv2.imwrite(str(THUMB_CACHE_DIR / f"{sha1}.jpg"), img)
+    save_image(img, THUMB_CACHE_DIR / f"{sha1}.jpg")
 
 
 # --- Project routes ---
@@ -258,6 +257,11 @@ def patch_chain(pid: str, cid: str, data: ChainUpdate):
     cf = _chain_file(pid, p["slug"], cid)
     operations = json.loads(cf.read_text()) if cf.exists() else []
     chain["operations"] = operations
+
+    # 清除该 Chain 预览缓存
+    for f in THUMB_CACHE_DIR.glob("preview-*.jpg"):
+        f.unlink()
+
     return chain
 
 
@@ -278,8 +282,20 @@ def delete_chain(pid: str, cid: str):
 
 # --- Preview route ---
 
-@app.get("/api/projects/{pid}/chains/{cid}/preview")
-def preview_chain(pid: str, cid: str, rid: str | None = None):
+_preview_bus: dict[str, list[asyncio.Queue]] = {}
+_preview_gen: dict[str, int] = {}
+
+
+def _publish(chain_key: str, event: dict):
+    for q in list(_preview_bus.get(chain_key, [])):
+        try:
+            q.put_nowait(event)
+        except (asyncio.QueueFull, RuntimeError):
+            pass
+
+
+@app.post("/api/projects/{pid}/chains/{cid}/preview")
+async def trigger_preview(pid: str, cid: str, rid: str | None = None):
     p = db_get_project(pid)
     if not p:
         raise HTTPException(404, "Project not found")
@@ -299,11 +315,68 @@ def preview_chain(pid: str, cid: str, rid: str | None = None):
     if not resource:
         raise HTTPException(404, "Resource not found")
 
-    orig_dir = _project_dir(pid, p["slug"]) / "resources" / "original"
-    orig = orig_dir / f"{target_rid}.{resource['ext']}"
+    orig = _project_dir(pid, p["slug"]) / "resources" / "original" / f"{target_rid}.{resource['ext']}"
     if not orig.exists():
         raise HTTPException(404, f"Original file not found: {target_rid}.{resource['ext']}")
 
-    cache_path = THUMB_CACHE_DIR / f"preview-{pid}-{cid}-{target_rid}.jpg"
-    render_preview(orig, operations, cache_path)
-    return FileResponse(cache_path, media_type="image/jpeg")
+    chain_key = f"{cid}-{target_rid}"
+    _preview_gen[chain_key] = _preview_gen.get(chain_key, 0) + 1
+    gen = _preview_gen[chain_key]
+
+    cache_key = hashlib.sha1(
+        (json.dumps(operations, sort_keys=True) + target_rid).encode()
+    ).hexdigest()
+    cache_path = THUMB_CACHE_DIR / f"preview-{cache_key}.jpg"
+
+    if cache_path.exists():
+        _publish(chain_key, {"type": "preview.complete", "thumb_sha1": cache_key, "gen": gen})
+        return {"cached": True}
+
+    asyncio.create_task(_run_preview(orig, operations, cache_path, chain_key, gen))
+    return {"accepted": True}
+
+
+async def _run_preview(orig: Path, operations: list, cache_path: Path, chain_key: str, gen: int):
+    try:
+        loop = asyncio.get_running_loop()
+
+        def on_progress(pct: int):
+            loop.call_soon_threadsafe(
+                _publish, chain_key,
+                {"type": "preview.progress", "progress": pct, "gen": gen}
+            )
+
+        await loop.run_in_executor(None, render_preview, orig, operations, cache_path, on_progress)
+
+        cache_key = cache_path.stem
+        loop.call_soon_threadsafe(
+            _publish, chain_key,
+            {"type": "preview.complete", "thumb_sha1": cache_key, "gen": gen}
+        )
+    except Exception as e:
+        _publish(chain_key, {"type": "preview.error", "message": str(e), "gen": gen})
+
+
+@app.get("/api/events")
+async def event_stream(chain_id: str | None = None):
+    queue: asyncio.Queue = asyncio.Queue()
+    if chain_id:
+        _preview_bus.setdefault(chain_id, []).append(queue)
+
+    async def gen():
+        try:
+            while True:
+                event = await queue.get()
+                yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            if chain_id:
+                buses = _preview_bus.get(chain_id, [])
+                if queue in buses:
+                    buses.remove(queue)
+                if not buses:
+                    _preview_bus.pop(chain_id, None)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

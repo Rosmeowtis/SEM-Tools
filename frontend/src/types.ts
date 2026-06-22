@@ -44,3 +44,8 @@ export const OP_KINDS = [
   { kind: "grayscale" as const, mode: "map" as const, params: {} as Record<string, never>,              label: "Grayscale" },
   { kind: "analyze" as const,   mode: "reduce" as const, params: { type: "porosity" },                  label: "Analyze" },
 ] as const;
+
+export type StudioEvent =
+  | { type: "preview.progress"; progress: number; gen: number }
+  | { type: "preview.complete"; thumb_sha1: string; gen: number }
+  | { type: "preview.error"; message: string; gen: number };
