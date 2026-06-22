@@ -8,6 +8,8 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
+from engine import render_preview
+
 from database import (
     add_resource,
     create_chain as db_create_chain,
@@ -272,3 +274,36 @@ def delete_chain(pid: str, cid: str):
     if cf.exists():
         cf.unlink()
     return {"deleted": ok}
+
+
+# --- Preview route ---
+
+@app.get("/api/projects/{pid}/chains/{cid}/preview")
+def preview_chain(pid: str, cid: str, rid: str | None = None):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    chain = db_get_chain(pid, cid)
+    if not chain:
+        raise HTTPException(404, "Chain not found")
+
+    cf = _chain_file(pid, p["slug"], cid)
+    operations = json.loads(cf.read_text()) if cf.exists() else []
+
+    resource_ids = json.loads(chain["resource_ids_json"])
+    if not resource_ids:
+        raise HTTPException(400, "No resources bound to chain")
+
+    target_rid = rid if rid and rid in resource_ids else resource_ids[0]
+    resource = db_get_resource(target_rid)
+    if not resource:
+        raise HTTPException(404, "Resource not found")
+
+    orig_dir = _project_dir(pid, p["slug"]) / "resources" / "original"
+    orig = orig_dir / f"{target_rid}.{resource['ext']}"
+    if not orig.exists():
+        raise HTTPException(404, f"Original file not found: {target_rid}.{resource['ext']}")
+
+    cache_path = THUMB_CACHE_DIR / f"preview-{pid}-{cid}-{target_rid}.jpg"
+    render_preview(orig, operations, cache_path)
+    return FileResponse(cache_path, media_type="image/jpeg")

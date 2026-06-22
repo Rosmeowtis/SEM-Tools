@@ -76,4 +76,7 @@ export const api = {
     }),
   deleteChain: (pid: string, cid: string) =>
     req<{ deleted: boolean }>(`/projects/${pid}/chains/${cid}`, { method: "DELETE" }),
+
+  previewUrl: (pid: string, cid: string, rid?: string) =>
+    `${BASE}/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`,
 };

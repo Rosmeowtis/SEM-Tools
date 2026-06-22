@@ -335,23 +335,74 @@ function SortableOpItem({ id, op, isSelected, onSelect, onDelete }: {
   );
 }
 
-function Inspector({ op }: { op: Operation | null }) {
+function Inspector({ op, onChange }: {
+  op: Operation | null;
+  onChange: (params: Record<string, unknown>) => void;
+}) {
   if (!op) return (
     <div className="w-64 border-l border-gray-200 p-4 text-gray-400 text-sm">
       Select an operation
     </div>
   );
-  return (
+  const label = OP_KINDS.find(k => k.kind === op.kind)?.label ?? op.kind;
+
+  if (op.kind === "crop") return (
     <div className="w-64 border-l border-gray-200 p-4 text-sm">
-      <div className="font-semibold mb-2">Operation</div>
-      <div><span className="text-gray-500">kind:</span> {op.kind}</div>
-      <div><span className="text-gray-500">mode:</span> {op.mode}</div>
-      <div className="mt-2 font-semibold">Params</div>
-      <pre className="text-xs bg-gray-50 p-2 rounded mt-1 overflow-auto">
-        {JSON.stringify(op.params, null, 2)}
-      </pre>
+      <div className="font-semibold mb-3">{label}</div>
+      {(["x","y","w","h"] as const).map(key => (
+        <div key={key} className="mb-2">
+          <label className="text-xs text-gray-500 block">{key.toUpperCase()}</label>
+          <input type="number" className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
+            value={(op.params as Record<string, unknown>)[key] as number} onChange={e => onChange({ ...op.params, [key]: Number(e.target.value) })} />
+        </div>
+      ))}
     </div>
   );
+
+  if (op.kind === "resize") return (
+    <div className="w-64 border-l border-gray-200 p-4 text-sm">
+      <div className="font-semibold mb-3">{label}</div>
+      {(["w","h"] as const).map(key => (
+        <div key={key} className="mb-2">
+          <label className="text-xs text-gray-500 block">{key === "w" ? "Width" : "Height"}</label>
+          <input type="number" className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
+            value={(op.params as Record<string, unknown>)[key] as number} onChange={e => onChange({ ...op.params, [key]: Number(e.target.value) })} />
+        </div>
+      ))}
+      <div className="mb-2">
+        <label className="text-xs text-gray-500 block">Algorithm</label>
+        <select className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
+          value={(op.params as Record<string, unknown>).algorithm as string} onChange={e => onChange({ ...op.params, algorithm: e.target.value })}>
+          <option value="nearest">nearest</option>
+          <option value="bilinear">bilinear</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  if (op.kind === "grayscale") return (
+    <div className="w-64 border-l border-gray-200 p-4 text-sm">
+      <div className="font-semibold mb-2">{label}</div>
+      <div className="text-gray-400">No parameters</div>
+    </div>
+  );
+
+  if (op.kind === "analyze") return (
+    <div className="w-64 border-l border-gray-200 p-4 text-sm">
+      <div className="font-semibold mb-3">{label}</div>
+      <div className="mb-2">
+        <label className="text-xs text-gray-500 block">Type</label>
+        <select className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
+          value={(op.params as Record<string, unknown>).type as string} onChange={e => onChange({ ...op.params, type: e.target.value })}>
+          <option value="porosity">porosity</option>
+          <option value="statistics">statistics</option>
+          <option value="distribution">distribution</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  return null;
 }
 
 function AddOpDropdown({ onAdd }: { onAdd: (kind: Operation["kind"]) => void }) {
@@ -382,6 +433,7 @@ function ChainEditorPage() {
   const nextId = useRef(0);
   const [opIds, setOpIds] = useState<string[]>([]);
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
+  const [previewRid, setPreviewRid] = useState<string | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
@@ -480,9 +532,31 @@ function ChainEditorPage() {
             setOpIds([...opIds, `op-${nextId.current++}`]);
             saveOps(nextOps);
           }} />
+
+          {ops.length > 0 && chain.resource_ids.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <button className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
+                onClick={() => setPreviewRid(chain.resource_ids[0])}>
+                Preview
+              </button>
+              {previewRid && (
+                <img src={api.previewUrl(pid, cid, previewRid)}
+                  className="mt-2 max-w-full h-48 object-contain border rounded bg-gray-50"
+                  alt="Preview" />
+              )}
+            </div>
+          )}
         </div>
 
-        <Inspector op={selectedOpIdx !== null ? ops[selectedOpIdx] : null} />
+        <Inspector op={selectedOpIdx !== null ? ops[selectedOpIdx] : null}
+          onChange={(params) => {
+            if (selectedOpIdx === null) return;
+            const nextOps = ops.map((op, i) =>
+              i === selectedOpIdx ? { ...op, params } : op
+            ) as Operation[];
+            setChain({ ...chain, operations: nextOps });
+            saveOps(nextOps);
+          }} />
       </div>
     </div>
   );
