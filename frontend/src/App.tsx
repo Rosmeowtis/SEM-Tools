@@ -441,6 +441,7 @@ function ChainEditorPage() {
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
   const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> } | null>(null);
   const [resultsOpen, setResultsOpen] = useState(false);
+  const [resultsHeight, setResultsHeight] = useState(300);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
@@ -590,7 +591,9 @@ function ChainEditorPage() {
             Results ({execResult.images.length})
           </button>
           {resultsOpen && (
-            <div className="px-4 py-2 bg-gray-50 max-h-48 overflow-auto border-t border-gray-100">
+            <div className="bg-gray-50 border-t border-gray-100" style={{ height: resultsHeight }}>
+              <ResultsHandle onResize={setResultsHeight} />
+              <div className="px-4 py-2 overflow-auto" style={{ height: resultsHeight - 6 }}>
               {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
                 <div className="mb-2">
                   <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
@@ -606,11 +609,53 @@ function ChainEditorPage() {
                 ))}
               </div>
             </div>
+            </div>
           )}
         </div>
       )}
     </div>
   );
+}
+
+function ResultsHandle({ onResize }: { onResize: (h: number) => void }) {
+  const handleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = handleRef.current;
+    if (!el) return;
+    let dragging = false;
+    let startY = 0;
+    let startH = 0;
+
+    const onDown = (e: MouseEvent) => {
+      e.preventDefault();
+      dragging = true;
+      startY = e.clientY;
+      startH = el.parentElement?.offsetHeight || 300;
+      document.body.style.cursor = "row-resize";
+      document.body.style.userSelect = "none";
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!dragging) return;
+      onResize(Math.max(120, startH - (e.clientY - startY)));
+    };
+    const onUp = () => {
+      dragging = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    el.addEventListener("mousedown", onDown);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      el.removeEventListener("mousedown", onDown);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <div ref={handleRef} className="h-1.5 cursor-row-resize hover:bg-blue-300" />;
 }
 
 function PresetsPage() {
