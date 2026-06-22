@@ -468,6 +468,14 @@ def exec_thumb(pid: str, cid: str, idx: int):
     return FileResponse(thumb, media_type="image/jpeg")
 
 
+@app.get("/api/projects/{pid}/chains/{cid}/execute-full/{idx}")
+def exec_full(pid: str, cid: str, idx: int):
+    path = THUMB_CACHE_DIR / f"execfull-execute-{pid}-{cid}-{idx}.jpg"
+    if not path.exists():
+        raise HTTPException(404, "Image not found")
+    return FileResponse(path, media_type="image/jpeg")
+
+
 # --- Preset routes ---
 
 
