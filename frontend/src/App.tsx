@@ -439,10 +439,12 @@ function ChainEditorPage() {
   const nextId = useRef(0);
   const [opIds, setOpIds] = useState<string[]>([]);
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
+  const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> } | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
-  useEffect(() => { fetchChain(); }, [fetchChain]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { fetchChain(); setExecResult(null); }, [fetchChain]);
   useEffect(() => { if (chain) { const ids = chain.operations.map(() => `op-${nextId.current++}`); setOpIds(ids); } }, [chain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
@@ -477,21 +479,59 @@ function ChainEditorPage() {
         <ChainTitle chain={chain} onRename={(name) => {
           if (pid && cid) api.updateChain(pid, cid, { name }).then(setChain);
         }} />
-        <button
-          className="ml-auto px-4 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
-          onClick={() => {
-            fetch(api.exportUrl(pid!, cid!), { method: "POST" })
-              .then(r => r.blob())
-              .then(blob => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url; a.download = `${chain.name}-export.zip`;
-                a.click(); URL.revokeObjectURL(url);
-              });
-          }}>
-          Execute
-        </button>
+        <div className="flex gap-2 ml-auto">
+          <button
+            className="px-4 py-1.5 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
+            onClick={() => {
+              if (pid && cid) api.executeChain(pid, cid).then(setExecResult);
+            }}>
+            Execute
+          </button>
+          <button
+            className="px-4 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
+            onClick={() => {
+              fetch(api.exportUrl(pid!, cid!), { method: "POST" })
+                .then(r => r.blob())
+                .then(blob => {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = `${chain.name}-export.zip`;
+                  a.click(); URL.revokeObjectURL(url);
+                });
+            }}>
+            Export
+          </button>
+        </div>
       </div>
+
+      {execResult && (
+        <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 max-h-48 overflow-auto">
+          {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
+            <div className="mb-2">
+              <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
+              <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+                {JSON.stringify(execResult.analysis, null, 2)}
+              </pre>
+            </div>
+          )}
+          {execResult.images.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-gray-600 mb-1">
+                Results ({execResult.images.length})
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {execResult.images.map(img => (
+                  <div key={img.index} className="shrink-0">
+                    <img src={api.executeThumbUrl(pid!, cid!, img.index)}
+                      className="h-24 w-auto border rounded bg-white" alt={img.filename} />
+                    <div className="text-xs text-gray-500 truncate w-20">{img.filename}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-auto p-4">

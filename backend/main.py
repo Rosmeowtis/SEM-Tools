@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from engine import execute_chain, load_image, render_preview, save_image
+from engine import execute_chain, execute_and_preview, load_image, render_preview, save_image
 
 from database import (
     add_resource,
@@ -430,6 +430,45 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
     name = chain.get("name", "export")
     return StreamingResponse(buf, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})
+
+
+# --- Execute route ---
+
+@app.post("/api/projects/{pid}/chains/{cid}/execute")
+def exec_chain(pid: str, cid: str):
+    p = db_get_project(pid)
+    if not p: raise HTTPException(404, "Project not found")
+    chain = db_get_chain(pid, cid)
+    if not chain: raise HTTPException(404, "Chain not found")
+
+    cf = _chain_file(pid, p["slug"], cid)
+    operations = json.loads(cf.read_text()) if cf.exists() else []
+
+    resource_ids = json.loads(chain["resource_ids_json"])
+    if not resource_ids:
+        return {"images": [], "analysis": {}}
+
+    resource_paths = []
+    for rid in resource_ids:
+        r = db_get_resource(rid)
+        if r:
+            orig = _project_dir(pid, p["slug"]) / "resources" / "original" / f"{rid}.{r['ext']}"
+            if orig.exists():
+                resource_paths.append((rid, r["filename"], orig))
+
+    prefix = f"execute-{pid}-{cid}"
+    return execute_and_preview(resource_paths, operations, THUMB_CACHE_DIR, prefix)
+
+
+@app.get("/api/projects/{pid}/chains/{cid}/execute-thumb/{idx}")
+def exec_thumb(pid: str, cid: str, idx: int):
+    thumb = THUMB_CACHE_DIR / f"execute-{pid}-{cid}-{idx}.jpg"
+    if not thumb.exists():
+        raise HTTPException(404, "Thumbnail not found")
+    return FileResponse(thumb, media_type="image/jpeg")
+
+
+# --- Preset routes ---
 
 
 # --- Preset routes ---

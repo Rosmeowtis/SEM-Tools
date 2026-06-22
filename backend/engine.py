@@ -166,3 +166,43 @@ def execute_chain(resource_paths: list[tuple[str, Path]], operations: list[dict]
             zf.writestr("analysis.json", json.dumps(results, indent=2))
     buf.seek(0)
     return buf
+
+
+def execute_and_preview(resource_paths: list[tuple[str, str, Path]], operations: list[dict],
+                        thumb_dir: Path, prefix: str) -> dict:
+    """Execute chain: render all images + save thumbnails + return analysis.
+    resource_paths: list of (rid, filename, path)"""
+    map_ops = [op for op in operations if op.get("mode") != "reduce"]
+    reduce_ops = [op for op in operations if op.get("mode") == "reduce"]
+
+    reduce_states = {}
+    for i, op in enumerate(reduce_ops):
+        reduce_states[i] = _reduce_init(op)
+
+    images = []
+    for i, (rid, filename, rpath) in enumerate(resource_paths):
+        img = load_image(rpath)
+        for op in map_ops:
+            img = apply_map_op(img, op)
+
+        h, w = img.shape[:2]
+        scale = 200 / max(h, w) if max(h, w) > 200 else 1.0
+        if scale < 1:
+            thumb = cv2.resize(img, (int(w * scale), int(h * scale)))
+        else:
+            thumb = img
+        thumb_path = thumb_dir / f"{prefix}-{i}.jpg"
+        save_image(thumb, thumb_path)
+
+        for j, op in enumerate(reduce_ops):
+            reduce_states[j] = _reduce_accumulate(op, reduce_states[j], img, rid)
+
+        del img
+        images.append({"filename": filename, "index": i})
+
+    results = {}
+    for i, op in enumerate(reduce_ops):
+        key = f"{op['kind']}-{i}"
+        results[key] = _reduce_finalize(op, reduce_states[i])
+
+    return {"images": images, "analysis": results}

@@ -86,6 +86,13 @@ export const api = {
   exportUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/export${rid ? `?rid=${rid}` : ""}`,
 
+  executeChain: (pid: string, cid: string) =>
+    req<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> }>(
+      `/projects/${pid}/chains/${cid}/execute`, { method: "POST" }),
+
+  executeThumbUrl: (pid: string, cid: string, idx: number) =>
+    `${BASE}/projects/${pid}/chains/${cid}/execute-thumb/${idx}`,
+
   listPresets: (category?: string) =>
     req<Preset[]>(`/presets${category ? `?category=${category}` : ""}`),
 
