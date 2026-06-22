@@ -25,6 +25,7 @@ import cv2
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from engine import (
     execute_chain,
@@ -682,3 +683,17 @@ def delete_preset(name: str):
         raise HTTPException(404, "Preset not found")
     path.unlink()
     return {"deleted": True}
+
+
+# --- 生产模式：静态文件挂载 ---
+
+_static_dir = Path(__file__).resolve().parent.parent / "static"
+if _static_dir.exists():
+    app.mount("/studio", StaticFiles(directory=str(_static_dir), html=True), name="static")
+
+
+# --- 入口点 ---
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8765, reload=False)

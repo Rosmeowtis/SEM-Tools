@@ -36,3 +36,7 @@ Thumbs.db
 _data/
 *.db
 __pycache__/
+
+# Build artifacts
+build/
+scripts/get-pip.py
