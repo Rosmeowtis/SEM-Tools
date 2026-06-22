@@ -1,0 +1,33 @@
+# Rust / Cargo
+target/
+Cargo.lock
+
+# Node.js / npm / yarn / pnpm
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+*.js.map
+
+# Tauri
+src-tauri/bin/
+src-tauri/target/
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns
+src-tauri/icons/icon.png
+src-tauri/.tauri-build-artifacts/
+src-tauri/tauri.conf.json
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
