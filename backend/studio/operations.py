@@ -3,11 +3,15 @@ import numpy as np
 
 
 def op_crop(img: np.ndarray, params: dict) -> np.ndarray:
-    return img[params["y"]:params["y"]+params["h"], params["x"]:params["x"]+params["w"]]
+    return img[
+        params["y"] : params["y"] + params["h"], params["x"] : params["x"] + params["w"]
+    ]
 
 
 def op_resize(img: np.ndarray, params: dict) -> np.ndarray:
-    interp = cv2.INTER_NEAREST if params.get("algorithm") == "nearest" else cv2.INTER_LINEAR
+    interp = (
+        cv2.INTER_NEAREST if params.get("algorithm") == "nearest" else cv2.INTER_LINEAR
+    )
     return cv2.resize(img, (params["w"], params["h"]), interpolation=interp)
 
 
@@ -19,7 +23,8 @@ def op_grayscale(img: np.ndarray, params: dict) -> np.ndarray:
 
 def op_blur(img: np.ndarray, params: dict) -> np.ndarray:
     k = params.get("ksize", 3)
-    if k % 2 == 0: k += 1
+    if k % 2 == 0:
+        k += 1
     return cv2.GaussianBlur(img, (k, k), 0)
 
 
@@ -57,7 +62,10 @@ def op_auto_threshold(img: np.ndarray, params: dict) -> np.ndarray:
     max_dist = -1.0
     best_thresh = left
     for i in range(left, peak):
-        dist = abs((peak - left) * (hist[i] - hist[left]) - (i - left) * (hist[peak] - hist[left]))
+        dist = abs(
+            (peak - left) * (hist[i] - hist[left])
+            - (i - left) * (hist[peak] - hist[left])
+        )
         if dist > max_dist:
             max_dist = dist
             best_thresh = i
@@ -86,7 +94,9 @@ def reduce_porosity_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
 
 
 def reduce_porosity_finalize(state: dict) -> dict:
-    overall = state["total_white"] / state["total_pixels"] if state["total_pixels"] else 0
+    overall = (
+        state["total_white"] / state["total_pixels"] if state["total_pixels"] else 0
+    )
     return {"overall": overall, "per_image": state["per_image"]}
 
 
@@ -103,9 +113,13 @@ def reduce_statistics_accumulate(state: dict, img: np.ndarray, rid: str) -> dict
 def reduce_statistics_finalize(state: dict) -> dict:
     arr = np.array(state["values"]) if state["values"] else np.array([0])
     return {
-        "count": int(len(arr)), "mean": float(arr.mean()),
-        "std": float(arr.std()), "min": float(arr.min()), "max": float(arr.max()),
-        "p50": float(np.percentile(arr, 50)), "p95": float(np.percentile(arr, 95)),
+        "count": int(len(arr)),
+        "mean": float(arr.mean()),
+        "std": float(arr.std()),
+        "min": float(arr.min()),
+        "max": float(arr.max()),
+        "p50": float(np.percentile(arr, 50)),
+        "p95": float(np.percentile(arr, 95)),
         "p99": float(np.percentile(arr, 99)),
     }
 
@@ -125,14 +139,69 @@ def reduce_distribution_accumulate(state: dict, img: np.ndarray, rid: str) -> di
 
 
 def reduce_distribution_finalize(state: dict) -> dict:
-    return {"particle_areas": state["particle_areas"],
-            "equiv_diameters": state["equiv_diameters"]}
+    return {
+        "particle_areas": state["particle_areas"],
+        "equiv_diameters": state["equiv_diameters"],
+    }
+
+
+def reduce_porosity_format(state: dict) -> str:
+    lines = [
+        # header
+        "name\tporosity",
+        # first line: overall
+        f"overall\t{state['overall'] * 100:.2f}%",
+    ]
+    for item in state["per_image"]:
+        lines.append(f"{item['rid']}\t{item['porosity'] * 100:.2f}%")
+    return "\n".join(lines)
+
+
+def reduce_statistics_format(state: dict) -> str:
+    return "\n".join(
+        [
+            f"count\t{state['count']}",
+            f"mean\t{state['mean']:.4f}",
+            f"std\t{state['std']:.4f}",
+            f"min\t{state['min']:.4f}",
+            f"max\t{state['max']:.4f}",
+            f"p50\t{state['p50']:.4f}",
+            f"p95\t{state['p95']:.4f}",
+            f"p99\t{state['p99']:.4f}",
+        ]
+    )
+
+
+def reduce_distribution_format(state: dict) -> str:
+    areas = state.get("particle_areas", [])
+    diameters = state.get("equiv_diameters", [])
+    if not areas:
+        return "index\tarea\tdiameter\n(no particles)"
+    lines = ["index\tarea\tdiameter"]
+    for i, (a, d) in enumerate(zip(areas, diameters)):
+        lines.append(f"{i}\t{a}\t{d:.4f}")
+    return "\n".join(lines)
 
 
 _REDUCE_TYPES: dict[str, dict] = {
-    "porosity": {"init": reduce_porosity_init, "accumulate": reduce_porosity_accumulate, "finalize": reduce_porosity_finalize},
-    "statistics": {"init": reduce_statistics_init, "accumulate": reduce_statistics_accumulate, "finalize": reduce_statistics_finalize},
-    "distribution": {"init": reduce_distribution_init, "accumulate": reduce_distribution_accumulate, "finalize": reduce_distribution_finalize},
+    "porosity": {
+        "init": reduce_porosity_init,
+        "accumulate": reduce_porosity_accumulate,
+        "finalize": reduce_porosity_finalize,
+        "format": reduce_porosity_format,
+    },
+    "statistics": {
+        "init": reduce_statistics_init,
+        "accumulate": reduce_statistics_accumulate,
+        "finalize": reduce_statistics_finalize,
+        "format": reduce_statistics_format,
+    },
+    "distribution": {
+        "init": reduce_distribution_init,
+        "accumulate": reduce_distribution_accumulate,
+        "finalize": reduce_distribution_finalize,
+        "format": reduce_distribution_format,
+    },
 }
 
 
@@ -154,7 +223,13 @@ def reduce_finalize(op: dict, state: dict) -> dict:
     return entry["finalize"](state) if entry else {}
 
 
-_MAP_OPS: dict[str, callable] = {
+def reduce_format(op: dict, state: dict) -> str:
+    t = op["params"].get("type", "porosity")
+    entry = _REDUCE_TYPES.get(t)
+    return entry["format"](state) if entry else ""
+
+
+_MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "crop": op_crop,
     "resize": op_resize,
     "grayscale": op_grayscale,
