@@ -1,7 +1,7 @@
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated, Union, Literal
+from typing import Annotated, Any, Union, Literal
 from pydantic import BaseModel, Field
 
 
@@ -141,8 +141,19 @@ Operation = Annotated[
 class ChainCreate(BaseModel):
     name: str
     resource_ids: list[str] = []
+    from_preset: str | None = None
 
 class ChainUpdate(BaseModel):
     name: str | None = None
     operations: list[Operation] | None = None
     resource_ids: list[str] | None = None
+
+
+class PresetCreate(BaseModel):
+    name: str
+    operations: list[Any] = []
+    category: list[str] = []
+
+class PresetUpdate(BaseModel):
+    operations: list[Any] | None = None
+    category: list[str] | None = None

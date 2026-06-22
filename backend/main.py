@@ -29,9 +29,13 @@ from database import (
     update_project as db_update_project,
 )
 from studio.config import DATA_DIR, THUMB_CACHE_DIR
+
+PRESETS_DIR = DATA_DIR / "presets"
 from studio.models import (
     ChainCreate,
     ChainUpdate,
+    PresetCreate,
+    PresetUpdate,
     Project,
     ProjectCreate,
     ProjectUpdate,
@@ -220,6 +224,16 @@ def create_chain(pid: str, data: ChainCreate):
     ts = now()
     chain = db_create_chain(pid, cid, data.name, data.resource_ids, ts)
     (DATA_DIR / "projects" / f"{pid}-{p['slug']}" / "chains").mkdir(parents=True, exist_ok=True)
+
+    if data.from_preset:
+        preset_path = PRESETS_DIR / f"{data.from_preset}.json"
+        if preset_path.exists():
+            preset = json.loads(preset_path.read_text())
+            ops = preset.get("operations", [])
+            _chain_file(pid, p["slug"], cid).write_text(json.dumps(ops))
+            chain["operations"] = ops
+            return chain
+
     _chain_file(pid, p["slug"], cid).write_text("[]")
     chain["operations"] = []
     return chain
@@ -416,3 +430,58 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
     name = chain.get("name", "export")
     return StreamingResponse(buf, media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})
+
+
+# --- Preset routes ---
+
+def _preset_path(name: str) -> Path:
+    return PRESETS_DIR / f"{name}.json"
+
+
+@app.get("/api/presets")
+def list_presets(category: str | None = None):
+    PRESETS_DIR.mkdir(parents=True, exist_ok=True)
+    presets = []
+    for f in PRESETS_DIR.glob("*.json"):
+        data = json.loads(f.read_text())
+        data["name"] = f.stem
+        if category and category not in data.get("category", []):
+            continue
+        presets.append(data)
+    return presets
+
+
+@app.post("/api/presets")
+def create_preset(data: PresetCreate):
+    PRESETS_DIR.mkdir(parents=True, exist_ok=True)
+    path = _preset_path(data.name)
+    if path.exists():
+        raise HTTPException(409, "Preset already exists")
+    path.write_text(json.dumps({
+        "operations": data.operations,
+        "category": data.category,
+    }, indent=2))
+    return {"name": data.name, "operations": data.operations, "category": data.category}
+
+
+@app.patch("/api/presets/{name}")
+def update_preset(name: str, data: PresetUpdate):
+    path = _preset_path(name)
+    if not path.exists():
+        raise HTTPException(404, "Preset not found")
+    existing = json.loads(path.read_text())
+    if data.operations is not None:
+        existing["operations"] = data.operations
+    if data.category is not None:
+        existing["category"] = data.category
+    path.write_text(json.dumps(existing, indent=2))
+    return {"name": name, **existing}
+
+
+@app.delete("/api/presets/{name}")
+def delete_preset(name: str):
+    path = _preset_path(name)
+    if not path.exists():
+        raise HTTPException(404, "Preset not found")
+    path.unlink()
+    return {"deleted": True}

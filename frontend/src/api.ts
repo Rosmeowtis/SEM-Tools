@@ -1,4 +1,4 @@
-import type { Chain, Operation, Project, ResourceMeta } from "./types";
+import type { Chain, Operation, Preset, Project, ResourceMeta } from "./types";
 
 export const BASE = "/api";
 
@@ -61,11 +61,11 @@ export const api = {
     `${BASE}/projects/${pid}/resources/${sha1}/thumb`,
 
   listChains: (pid: string) => req<Chain[]>(`/projects/${pid}/chains`),
-  createChain: (pid: string, name: string) =>
+  createChain: (pid: string, name: string, fromPreset?: string) =>
     req<Chain>(`/projects/${pid}/chains`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, ...(fromPreset ? { from_preset: fromPreset } : {}) }),
     }),
   getChain: (pid: string, cid: string) => req<Chain>(`/projects/${pid}/chains/${cid}`),
   updateChain: (pid: string, cid: string, data: { name?: string; operations?: Operation[]; resource_ids?: string[] }) =>
@@ -85,4 +85,24 @@ export const api = {
 
   exportUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/export${rid ? `?rid=${rid}` : ""}`,
+
+  listPresets: (category?: string) =>
+    req<Preset[]>(`/presets${category ? `?category=${category}` : ""}`),
+
+  createPreset: (name: string, operations: Operation[], category: string[] = []) =>
+    req<Preset>("/presets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, operations, category }),
+    }),
+
+  updatePreset: (name: string, data: { operations?: Operation[]; category?: string[] }) =>
+    req<Preset>(`/presets/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+
+  deletePreset: (name: string) =>
+    req<{ deleted: boolean }>(`/presets/${encodeURIComponent(name)}`, { method: "DELETE" }),
 };

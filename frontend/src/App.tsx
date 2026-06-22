@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { api, BASE } from "./api";
-import type { Chain, Operation, OperationParams, Project, ResourceMeta, StudioEvent } from "./types";
+import type { Chain, Operation, OperationParams, Preset, Project, ResourceMeta, StudioEvent } from "./types";
 import { OP_KINDS } from "./types";
 
 function useEventStream(chainId: string | null, onEvent: (e: StudioEvent) => void) {
@@ -21,20 +21,24 @@ function useEventStream(chainId: string | null, onEvent: (e: StudioEvent) => voi
 
 function Sidebar({
   projects,
+  presets,
   onDeleteProject,
   onCreateProject,
+  onCreateChain,
   currentPid,
 }: {
   projects: Project[];
+  presets: Preset[];
   onDeleteProject: (pid: string) => void;
   onCreateProject: (title: string) => void;
+  onCreateChain: (pid: string, name: string, fromPreset?: string) => void;
   currentPid?: string;
 }) {
   const [title, setTitle] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [chains, setChains] = useState<Record<string, Chain[]>>({});
   const [newChainName, setNewChainName] = useState<Record<string, string>>({});
-  const navigate = useNavigate();
+  const [newChainPreset, setNewChainPreset] = useState<Record<string, string>>({});
 
   const fetchChains = useCallback((pid: string) => {
     api.listChains(pid).then((list) => setChains((prev) => ({ ...prev, [pid]: list })));
@@ -51,11 +55,9 @@ function Sidebar({
   const handleCreateChain = (pid: string) => {
     const name = newChainName[pid]?.trim();
     if (!name) return;
-    api.createChain(pid, name).then((chain) => {
-      setNewChainName((prev) => ({ ...prev, [pid]: "" }));
-      fetchChains(pid);
-      navigate(`/projects/${pid}/chains/${chain.id}`);
-    });
+    onCreateChain(pid, name, newChainPreset[pid] || undefined);
+    setNewChainName(prev => ({ ...prev, [pid]: "" }));
+    setNewChainPreset(prev => ({ ...prev, [pid]: "" }));
   };
 
   const handleDeleteChain = (pid: string, cid: string) => {
@@ -150,6 +152,13 @@ function Sidebar({
                     handleCreateChain(p.id);
                   }}
                 >
+                  <select
+                    className="w-12 px-1 border border-gray-300 rounded text-xs"
+                    value={newChainPreset[p.id] || ""}
+                    onChange={e => setNewChainPreset(prev => ({ ...prev, [p.id]: e.target.value }))}>
+                    <option value="">--</option>
+                    {presets.map(pr => <option key={pr.name} value={pr.name}>{pr.name}</option>)}
+                  </select>
                   <input
                     className="flex-1 px-1 py-0.5 border border-gray-300 rounded text-xs"
                     placeholder="New chain..."
@@ -164,6 +173,10 @@ function Sidebar({
           </div>
         ))}
       </div>
+      <Link to="/tools/presets"
+        className="block px-3 py-2 text-sm text-gray-500 border-t border-gray-200 hover:bg-gray-200">
+        Presets
+      </Link>
     </div>
   );
 }
@@ -353,74 +366,35 @@ function SortableOpItem({ id, op, isSelected, onSelect, onDelete }: {
   );
 }
 
-function Inspector({ op, onChange }: {
+function SchemaForm({ op, onChange }: {
   op: Operation | null;
   onChange: (params: Record<string, unknown>) => void;
 }) {
-  if (!op) return (
-    <div className="w-64 border-l border-gray-200 p-4 text-gray-400 text-sm">
-      Select an operation
-    </div>
-  );
-  const label = OP_KINDS.find(k => k.kind === op.kind)?.label ?? op.kind;
-
-  if (op.kind === "crop") return (
+  if (!op) return <div className="w-64 border-l border-gray-200 p-4 text-gray-400 text-sm">Select an operation</div>;
+  const kindDef = OP_KINDS.find(k => k.kind === op.kind);
+  if (!kindDef) return null;
+  return (
     <div className="w-64 border-l border-gray-200 p-4 text-sm">
-      <div className="font-semibold mb-3">{label}</div>
-      {(["x","y","w","h"] as const).map(key => (
-        <div key={key} className="mb-2">
-          <label className="text-xs text-gray-500 block">{key.toUpperCase()}</label>
-          <input type="number" className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
-            value={(op.params as Record<string, unknown>)[key] as number} onChange={e => onChange({ ...op.params, [key]: Number(e.target.value) })} />
+      <div className="font-semibold mb-3">{kindDef.label}</div>
+      {kindDef.fields.length === 0 && <div className="text-gray-400">No parameters</div>}
+      {kindDef.fields.map(f => (
+        <div key={f.key} className="mb-2">
+          <label className="text-xs text-gray-500 block">{f.label}</label>
+          {f.type === "number" ? (
+            <input type="number" className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
+              value={(op.params as Record<string, unknown>)[f.key] as number ?? f.default}
+              onChange={e => onChange({ ...op.params, [f.key]: Number(e.target.value) })} />
+          ) : (
+            <select className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
+              value={(op.params as Record<string, unknown>)[f.key] as string ?? f.default}
+              onChange={e => onChange({ ...op.params, [f.key]: e.target.value })}>
+              {f.options?.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          )}
         </div>
       ))}
     </div>
   );
-
-  if (op.kind === "resize") return (
-    <div className="w-64 border-l border-gray-200 p-4 text-sm">
-      <div className="font-semibold mb-3">{label}</div>
-      {(["w","h"] as const).map(key => (
-        <div key={key} className="mb-2">
-          <label className="text-xs text-gray-500 block">{key === "w" ? "Width" : "Height"}</label>
-          <input type="number" className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
-            value={(op.params as Record<string, unknown>)[key] as number} onChange={e => onChange({ ...op.params, [key]: Number(e.target.value) })} />
-        </div>
-      ))}
-      <div className="mb-2">
-        <label className="text-xs text-gray-500 block">Algorithm</label>
-        <select className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
-          value={(op.params as Record<string, unknown>).algorithm as string} onChange={e => onChange({ ...op.params, algorithm: e.target.value })}>
-          <option value="nearest">nearest</option>
-          <option value="bilinear">bilinear</option>
-        </select>
-      </div>
-    </div>
-  );
-
-  if (op.kind === "grayscale") return (
-    <div className="w-64 border-l border-gray-200 p-4 text-sm">
-      <div className="font-semibold mb-2">{label}</div>
-      <div className="text-gray-400">No parameters</div>
-    </div>
-  );
-
-  if (op.kind === "analyze") return (
-    <div className="w-64 border-l border-gray-200 p-4 text-sm">
-      <div className="font-semibold mb-3">{label}</div>
-      <div className="mb-2">
-        <label className="text-xs text-gray-500 block">Type</label>
-        <select className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
-          value={(op.params as Record<string, unknown>).type as string} onChange={e => onChange({ ...op.params, type: e.target.value })}>
-          <option value="porosity">porosity</option>
-          <option value="statistics">statistics</option>
-          <option value="distribution">distribution</option>
-        </select>
-      </div>
-    </div>
-  );
-
-  return null;
 }
 
 function AddOpDropdown({ onAdd }: { onAdd: (kind: Operation["kind"]) => void }) {
@@ -596,7 +570,7 @@ function ChainEditorPage() {
           )}
         </div>
 
-        <Inspector op={selectedOpIdx !== null ? ops[selectedOpIdx] : null}
+        <SchemaForm op={selectedOpIdx !== null ? ops[selectedOpIdx] : null}
           onChange={(params) => {
             if (selectedOpIdx === null) return;
             const nextOps = ops.map((op, i) =>
@@ -610,8 +584,162 @@ function ChainEditorPage() {
   );
 }
 
+function PresetsPage() {
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [editOps, setEditOps] = useState<Operation[]>([]);
+  const [editCategory, setEditCategory] = useState("");
+  const nextId = useRef(0);
+  const [opIds, setOpIds] = useState<string[]>([]);
+  const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
+
+  const fetchPresets = () => { api.listPresets().then(setPresets); };
+  useEffect(fetchPresets, []);
+
+  const handleSave = () => {
+    if (!editing) return;
+    const category = editCategory.split(",").map(s => s.trim()).filter(Boolean);
+    if (presets.some(p => p.name === editing)) {
+      api.updatePreset(editing, { operations: editOps, category }).then(fetchPresets);
+    } else {
+      api.createPreset(editing, editOps, category).then(fetchPresets);
+    }
+    setEditing(null);
+  };
+
+  const handleDelete = (name: string) => {
+    api.deletePreset(name).then(fetchPresets);
+  };
+
+  const handleEdit = (preset: Preset) => {
+    setEditing(preset.name);
+    setEditOps(preset.operations);
+    setEditCategory(preset.category.join(", "));
+    nextId.current = 0;
+    setOpIds(preset.operations.map(() => `op-${nextId.current++}`));
+    setSelectedOpIdx(null);
+  };
+
+  const handleCreate = () => {
+    if (!newName.trim()) return;
+    setEditing(newName.trim());
+    setEditOps([]);
+    setEditCategory("");
+    setOpIds([]);
+    setSelectedOpIdx(null);
+    setNewName("");
+  };
+
+  if (editing) return (
+    <div className="flex flex-col h-full">
+      <div className="px-4 py-2 border-b border-gray-200 flex items-center gap-2">
+        <span className="font-semibold">{presets.some(p => p.name === editing) ? `Edit: ${editing}` : `New: ${editing}`}</span>
+        <button onClick={handleSave} className="px-3 py-1 bg-blue-500 text-white rounded text-sm ml-auto">Save</button>
+        <button onClick={() => setEditing(null)} className="px-3 py-1 border border-gray-300 rounded text-sm">Cancel</button>
+      </div>
+      <div className="px-4 py-2 border-b border-gray-200 text-sm flex gap-2">
+        <span className="text-gray-500">Category:</span>
+        <input className="flex-1 border border-gray-300 rounded px-2 py-0.5 text-sm"
+          placeholder="comma,separated,tags" value={editCategory}
+          onChange={e => setEditCategory(e.target.value)} />
+      </div>
+      <div className="flex flex-1 overflow-hidden">
+        <div className="flex-1 overflow-auto p-4">
+          {editOps.length === 0 ? (
+            <div className="text-gray-400 text-center mt-8">No operations yet. Add one below.</div>
+          ) : (
+            <DndContext
+              collisionDetection={closestCenter}
+              onDragEnd={(e: DragEndEvent) => {
+                const { active, over } = e;
+                if (!over || active.id === over.id) return;
+                const oldIdx = opIds.indexOf(active.id as string);
+                const newIdx = opIds.indexOf(over.id as string);
+                if (oldIdx < 0 || newIdx < 0) return;
+                const nextOps = [...editOps];
+                const [moved] = nextOps.splice(oldIdx, 1);
+                nextOps.splice(newIdx, 0, moved);
+                const nextIds = [...opIds];
+                const [movedId] = nextIds.splice(oldIdx, 1);
+                nextIds.splice(newIdx, 0, movedId);
+                setEditOps(nextOps);
+                setOpIds(nextIds);
+              }}
+            >
+              <SortableContext items={opIds} strategy={verticalListSortingStrategy}>
+                {editOps.map((op, i) => (
+                  <SortableOpItem key={opIds[i]} id={opIds[i]} op={op}
+                    isSelected={selectedOpIdx === i}
+                    onSelect={() => setSelectedOpIdx(i)}
+                    onDelete={() => {
+                      setEditOps(editOps.filter((_, j) => j !== i));
+                      setOpIds(opIds.filter((_, j) => j !== i));
+                      if (selectedOpIdx === i) setSelectedOpIdx(null);
+                    }} />
+                ))}
+              </SortableContext>
+            </DndContext>
+          )}
+          <AddOpDropdown onAdd={(kind) => {
+            const template = OP_KINDS.find(k => k.kind === kind);
+            if (!template) return;
+            const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };
+            setEditOps([...editOps, newOp]);
+            setOpIds([...opIds, `op-${nextId.current++}`]);
+          }} />
+        </div>
+        <SchemaForm op={selectedOpIdx !== null ? editOps[selectedOpIdx] : null}
+          onChange={(params) => {
+            if (selectedOpIdx === null) return;
+            setEditOps(editOps.map((op, i) => i === selectedOpIdx ? { ...op, params } : op) as Operation[]);
+          }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <h1 className="text-lg font-semibold">Presets</h1>
+        <div className="flex gap-1 ml-auto">
+          <input className="px-2 py-1 border border-gray-300 rounded text-sm w-40"
+            placeholder="New preset name..." value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }} />
+          <button onClick={handleCreate}
+            className="px-3 py-1 bg-blue-500 text-white rounded text-sm">
+            New
+          </button>
+        </div>
+      </div>
+      {presets.length === 0 ? (
+        <p className="text-gray-400">No presets yet.</p>
+      ) : (
+        <div className="grid gap-2">
+          {presets.map(p => (
+            <div key={p.name} className="flex items-center border border-gray-200 rounded p-3 hover:bg-gray-50 cursor-pointer"
+              onClick={() => handleEdit(p)}>
+              <div className="flex-1">
+                <div className="font-mono text-sm">{p.name}</div>
+                <div className="text-xs text-gray-500">
+                  {p.operations.length} ops
+                  {p.category.length > 0 && ` | ${p.category.join(", ")}`}
+                </div>
+              </div>
+              <button onClick={(e) => { e.stopPropagation(); handleDelete(p.name); }}
+                className="text-red-400 hover:text-red-600 text-xs">delete</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
   const navigate = useNavigate();
   const location = useLocation();
   const currentPid = location.pathname.split("/")[2];
@@ -621,6 +749,7 @@ export default function App() {
   };
 
   useEffect(fetchProjects, []);
+  useEffect(() => { api.listPresets().then(setPresets); }, []);
 
   const handleCreateProject = (title: string) => {
     api.createProject(title).then((p) => {
@@ -636,12 +765,20 @@ export default function App() {
     });
   };
 
+  const handleCreateChain = (pid: string, name: string, fromPreset?: string) => {
+    api.createChain(pid, name, fromPreset).then((c) => {
+      navigate(`/projects/${pid}/chains/${c.id}`);
+    });
+  };
+
   return (
     <div className="flex h-screen">
       <Sidebar
         projects={projects}
+        presets={presets}
         onDeleteProject={handleDeleteProject}
         onCreateProject={handleCreateProject}
+        onCreateChain={handleCreateChain}
         currentPid={currentPid}
       />
       <div className="flex-1 overflow-auto">
@@ -649,6 +786,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/projects/:pid" element={<ResourcesPage />} />
           <Route path="/projects/:pid/chains/:cid" element={<ChainEditorPage />} />
+          <Route path="/tools/presets" element={<PresetsPage />} />
         </Routes>
       </div>
     </div>

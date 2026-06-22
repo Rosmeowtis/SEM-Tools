@@ -85,6 +85,12 @@ export const OP_KINDS = [
     fields: [{ key:"type", label:"Type", type:"select", options:["porosity","statistics","distribution"], default:"porosity" }] as FieldDef[] },
 ];
 
+export interface Preset {
+  name: string;
+  category: string[];
+  operations: Operation[];
+}
+
 export type StudioEvent =
   | { type: "preview.progress"; progress: number; gen: number }
   | { type: "preview.complete"; thumb_sha1: string; gen: number }
