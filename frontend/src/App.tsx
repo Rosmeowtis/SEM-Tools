@@ -449,12 +449,14 @@ function ChainEditorPage() {
   useEffect(() => { if (chain) { const ids = chain.operations.map(() => `op-${nextId.current++}`); setOpIds(ids); } }, [chain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
-  // 自动绑定项目所有资源
+  // 同步绑定项目所有资源
   useEffect(() => {
-    if (chain && pid && chain.resource_ids.length === 0) {
+    if (chain && pid) {
       api.listResources(pid).then(res => {
         const ids = res.map(r => r.sha1);
-        if (ids.length > 0) {
+        const sortedNew = [...ids].sort();
+        const sortedCur = [...chain.resource_ids].sort();
+        if (sortedNew.length > 0 && JSON.stringify(sortedNew) !== JSON.stringify(sortedCur)) {
           api.updateChain(pid, chain.id, { resource_ids: ids }).then(setChain);
         }
       });
