@@ -42,6 +42,38 @@ function Sidebar({
   const [newChainName, setNewChainName] = useState<Record<string, string>>({});
   const [newChainPreset, setNewChainPreset] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
+  const [sidebarWidth, setSidebarWidth] = useState(288);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = sidebarRef.current;
+    if (!el) return;
+    let dragging = false;
+
+    const onDown = (e: MouseEvent) => {
+      e.preventDefault();
+      dragging = true;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!dragging) return;
+      setSidebarWidth(Math.max(200, Math.min(500, e.clientX)));
+    };
+    const onUp = () => {
+      dragging = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    el.addEventListener("mousedown", onDown);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      el.removeEventListener("mousedown", onDown);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
 
   const filtered = projects.filter(p => {
     if (!search.trim()) return true;
@@ -81,7 +113,7 @@ function Sidebar({
   };
 
   return (
-    <div className="w-56 bg-gray-100 h-screen flex flex-col border-r border-gray-200 shrink-0">
+    <div className="bg-gray-100 h-screen flex flex-col border-r border-gray-200 shrink-0 relative" style={{ width: sidebarWidth }}>
       <div className="p-3 font-semibold text-gray-800 border-b border-gray-200">
         SEM-Tools
       </div>
@@ -200,6 +232,8 @@ function Sidebar({
         className="block px-3 py-2 text-sm text-gray-500 border-t border-gray-200 hover:bg-gray-200">
         Presets
       </Link>
+      <div ref={sidebarRef}
+        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-300" />
     </div>
   );
 }
