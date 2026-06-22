@@ -440,11 +440,12 @@ function ChainEditorPage() {
   const [opIds, setOpIds] = useState<string[]>([]);
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
   const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> } | null>(null);
+  const [resultsOpen, setResultsOpen] = useState(false);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchChain(); setExecResult(null); }, [fetchChain]);
+  useEffect(() => { fetchChain(); setExecResult(null); setResultsOpen(false); }, [fetchChain]);
   useEffect(() => { if (chain) { const ids = chain.operations.map(() => `op-${nextId.current++}`); setOpIds(ids); } }, [chain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
@@ -483,7 +484,7 @@ function ChainEditorPage() {
           <button
             className="px-4 py-1.5 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
             onClick={() => {
-              if (pid && cid) api.executeChain(pid, cid).then(setExecResult);
+              if (pid && cid) api.executeChain(pid, cid).then(r => { setExecResult(r); setResultsOpen(true); });
             }}>
             Execute
           </button>
@@ -503,35 +504,6 @@ function ChainEditorPage() {
           </button>
         </div>
       </div>
-
-      {execResult && (
-        <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 max-h-48 overflow-auto">
-          {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
-            <div className="mb-2">
-              <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
-              <pre className="text-xs text-gray-700 whitespace-pre-wrap">
-                {JSON.stringify(execResult.analysis, null, 2)}
-              </pre>
-            </div>
-          )}
-          {execResult.images.length > 0 && (
-            <div>
-              <div className="text-xs font-semibold text-gray-600 mb-1">
-                Results ({execResult.images.length})
-              </div>
-              <div className="flex gap-2 overflow-x-auto">
-                {execResult.images.map(img => (
-                  <div key={img.index} className="shrink-0">
-                    <img src={api.executeThumbUrl(pid!, cid!, img.index)}
-                      className="h-24 w-auto border rounded bg-white" alt={img.filename} />
-                    <div className="text-xs text-gray-500 truncate w-20">{img.filename}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-auto p-4">
@@ -607,6 +579,34 @@ function ChainEditorPage() {
             saveOps(nextOps);
           }} />
       </div>
+
+      {execResult && (
+        <div className="border-t border-gray-200 shrink-0">
+          <button className="w-full flex items-center gap-1 px-4 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
+            onClick={() => setResultsOpen(o => !o)}>
+            <span>{resultsOpen ? "▼" : "▶"}</span>
+            Results ({execResult.images.length})
+          </button>
+          {resultsOpen && (
+            <div className="px-4 py-2 bg-gray-50 max-h-48 overflow-auto border-t border-gray-100">
+              {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
+                <div className="mb-2">
+                  <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
+                  <pre className="text-xs text-gray-700 whitespace-pre-wrap">{JSON.stringify(execResult.analysis, null, 2)}</pre>
+                </div>
+              )}
+              <div className="flex gap-2 overflow-x-auto">
+                {execResult.images.map(img => (
+                  <div key={img.index} className="shrink-0">
+                    <img src={api.executeThumbUrl(pid!, cid!, img.index)} className="h-24 w-auto border rounded bg-white" alt={img.filename} />
+                    <div className="text-xs text-gray-500 truncate w-20">{img.filename}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
