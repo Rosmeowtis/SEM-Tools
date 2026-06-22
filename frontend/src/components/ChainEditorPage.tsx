@@ -9,7 +9,6 @@ import { ChainTitle } from "./ChainTitle";
 import { SortableOpItem } from "./SortableOpItem";
 import { SchemaForm } from "./SchemaForm";
 import { AddOpDropdown } from "./AddOpDropdown";
-import { ResultsHandle } from "./ResultsHandle";
 
 export function ChainEditorPage() {
   const { pid, cid } = useParams<{ pid: string; cid: string }>();
@@ -18,18 +17,18 @@ export function ChainEditorPage() {
   const [opIds, setOpIds] = useState<string[]>([]);
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
   const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> } | null>(null);
-  const [resultsOpen, setResultsOpen] = useState(false);
-  const [resultsHeight, setResultsHeight] = useState(300);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("overlay");
   const [overlayOpacity, setOverlayOpacity] = useState(50);
   const debounceRef = useRef<number | undefined>(undefined);
   const origRef = useRef<HTMLImageElement>(null);
   const [origSize, setOrigSize] = useState<{ w: number; h: number } | null>(null);
+  const [rightWidth, setRightWidth] = useState(320);
+  const rightPanelRef = useRef<HTMLDivElement>(null);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { fetchChain(); setExecResult(null); setResultsOpen(false); }, [fetchChain]);
+  useEffect(() => { fetchChain(); setExecResult(null); }, [fetchChain]);
   useEffect(() => { if (chain) { const ids = chain.operations.map(() => `op-${nextId.current++}`); setOpIds(ids); } }, [chain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(debounceRef.current), []);
   useEffect(() => { setOrigSize(null); }, [lightboxIdx]); // eslint-disable-line react-hooks/set-state-in-effect
@@ -83,7 +82,7 @@ export function ChainEditorPage() {
         <ChainTitle chain={chain} onRename={(name) => { if (pid && cid) api.updateChain(pid, cid, { name }).then(setChain); }} />
         <div className="flex gap-2 ml-auto">
           <button className="px-4 py-1.5 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
-            onClick={() => { if (pid && cid) api.executeChain(pid, cid).then(r => { setExecResult(r); setResultsOpen(true); }); }}>
+            onClick={() => { if (pid && cid) api.executeChain(pid, cid).then(setExecResult); }}>
             Execute
           </button>
           <button className="px-4 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
@@ -101,90 +100,108 @@ export function ChainEditorPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-auto p-4">
-          {ops.length === 0 ? (
-            <div className="text-gray-400 text-center mt-8">No operations yet. Add one below.</div>
-          ) : (
-            <DndContext collisionDetection={closestCenter} onDragEnd={(e: DragEndEvent) => {
-              const { active, over } = e;
-              if (!over || active.id === over.id) return;
-              const oldIdx = opIds.indexOf(active.id as string);
-              const newIdx = opIds.indexOf(over.id as string);
-              if (oldIdx < 0 || newIdx < 0) return;
-              const nextOps = [...ops];
-              const [moved] = nextOps.splice(oldIdx, 1);
-              nextOps.splice(newIdx, 0, moved);
-              const nextIds = [...opIds];
-              const [movedId] = nextIds.splice(oldIdx, 1);
-              nextIds.splice(newIdx, 0, movedId);
-              setChain({ ...chain, operations: nextOps });
-              setOpIds(nextIds);
-              saveOps(nextOps);
-            }}>
-              <SortableContext items={opIds} strategy={verticalListSortingStrategy}>
-                {ops.map((op, i) => (
-                  <SortableOpItem key={opIds[i]} id={opIds[i]} op={op} isSelected={selectedOpIdx === i} onSelect={() => setSelectedOpIdx(i)}
-                    onDelete={() => {
-                      const next = ops.filter((_, j) => j !== i);
-                      const nextIds = opIds.filter((_, j) => j !== i);
-                      setChain({ ...chain, operations: next });
-                      setOpIds(nextIds);
-                      saveOps(next);
-                      if (selectedOpIdx === i) setSelectedOpIdx(null);
-                    }} />
-                ))}
-              </SortableContext>
-            </DndContext>
-          )}
-
-          <AddOpDropdown onAdd={(kind) => {
-            const template = OP_KINDS.find(k => k.kind === kind);
-            if (!template) return;
-            const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };
-            const nextOps = [...ops, newOp];
-            setChain({ ...chain, operations: nextOps });
-            setOpIds([...opIds, `op-${nextId.current++}`]);
-            saveOps(nextOps);
-          }} />
-        </div>
-
-        <SchemaForm op={selectedOpIdx !== null ? ops[selectedOpIdx] : null} onChange={(params) => {
-          if (selectedOpIdx === null) return;
-          const nextOps = ops.map((op, i) => i === selectedOpIdx ? { ...op, params } : op) as Operation[];
-          setChain({ ...chain, operations: nextOps });
-          saveOps(nextOps);
-        }} />
-      </div>
-
-      {execResult && (
-        <div className="border-t border-gray-200 shrink-0">
-          <button className="w-full flex items-center gap-1 px-4 py-1.5 text-xs text-gray-500 hover:bg-gray-50" onClick={() => setResultsOpen(o => !o)}>
-            <span>{resultsOpen ? "▼" : "▶"}</span> Results ({execResult.images.length})
-          </button>
-          {resultsOpen && (
-            <div className="bg-gray-50 border-t border-gray-100" style={{ height: resultsHeight }}>
-              <ResultsHandle onResize={setResultsHeight} />
-              <div className="px-4 py-2 overflow-auto" style={{ height: resultsHeight - 6 }}>
-                {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
-                  <div className="mb-2">
-                    <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
-                    <pre className="text-xs text-gray-700 whitespace-pre-wrap">{JSON.stringify(execResult.analysis, null, 2)}</pre>
-                  </div>
-                )}
-                <div className="flex gap-2 overflow-x-auto">
-                  {execResult.images.map(img => (
-                    <div key={img.index} className="shrink-0">
-                      <img src={api.executeThumbUrl(pid!, cid!, img.index)} className="h-24 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
-                        alt={img.filename} title={img.filename} onClick={() => setLightboxIdx(img.index)} />
-                      <div className="text-xs text-gray-500 truncate" title={img.filename}>{img.filename}</div>
-                    </div>
-                  ))}
+        <div className="flex-1 overflow-auto p-4 bg-gray-50">
+          {execResult ? (
+            <>
+              {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
+                  <pre className="text-xs text-gray-700 whitespace-pre-wrap">{JSON.stringify(execResult.analysis, null, 2)}</pre>
                 </div>
+              )}
+              <div className="flex flex-wrap gap-3">
+                {execResult.images.map(img => (
+                  <div key={img.index} className="shrink-0">
+                    <img src={api.executeThumbUrl(pid!, cid!, img.index)} className="h-28 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
+                      alt={img.filename} title={img.filename} onClick={() => setLightboxIdx(img.index)} />
+                    <div className="text-xs text-gray-500 truncate mt-0.5" title={img.filename} style={{ maxWidth: 112 }}>{img.filename}</div>
+                  </div>
+                ))}
               </div>
-            </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-gray-400 text-sm">No results yet. Click <span className="font-medium text-blue-500 mx-1">Execute</span> to process images.</div>
           )}
         </div>
-      )}
+
+        <div ref={rightPanelRef} className="border-l border-gray-200 shrink-0 flex overflow-hidden" style={{ width: rightWidth }}>
+          <div className="w-1.5 shrink-0 cursor-col-resize bg-gray-100 hover:bg-blue-300 transition-colors"
+            onMouseDown={e => {
+              e.preventDefault();
+              const startX = e.clientX;
+              const startW = rightWidth;
+              const onMove = (ev: MouseEvent) => {
+                setRightWidth(Math.max(240, Math.min(500, startW - (ev.clientX - startX))));
+              };
+              const onUp = () => {
+                document.removeEventListener("mousemove", onMove);
+                document.removeEventListener("mouseup", onUp);
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+              };
+              document.body.style.cursor = "col-resize";
+              document.body.style.userSelect = "none";
+              document.addEventListener("mousemove", onMove);
+              document.addEventListener("mouseup", onUp);
+            }} />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-auto p-2">
+              {ops.length === 0 ? (
+                <div className="text-gray-400 text-xs text-center mt-4">No operations yet.</div>
+              ) : (
+                <DndContext collisionDetection={closestCenter} onDragEnd={(e: DragEndEvent) => {
+                  const { active, over } = e;
+                  if (!over || active.id === over.id) return;
+                  const oldIdx = opIds.indexOf(active.id as string);
+                  const newIdx = opIds.indexOf(over.id as string);
+                  if (oldIdx < 0 || newIdx < 0) return;
+                  const nextOps = [...ops];
+                  const [moved] = nextOps.splice(oldIdx, 1);
+                  nextOps.splice(newIdx, 0, moved);
+                  const nextIds = [...opIds];
+                  const [movedId] = nextIds.splice(oldIdx, 1);
+                  nextIds.splice(newIdx, 0, movedId);
+                  setChain({ ...chain, operations: nextOps });
+                  setOpIds(nextIds);
+                  saveOps(nextOps);
+                }}>
+                  <SortableContext items={opIds} strategy={verticalListSortingStrategy}>
+                    {ops.map((op, i) => (
+                      <SortableOpItem key={opIds[i]} id={opIds[i]} op={op} isSelected={selectedOpIdx === i} onSelect={() => setSelectedOpIdx(i)}
+                        onDelete={() => {
+                          const next = ops.filter((_, j) => j !== i);
+                          const nextIds = opIds.filter((_, j) => j !== i);
+                          setChain({ ...chain, operations: next });
+                          setOpIds(nextIds);
+                          saveOps(next);
+                          if (selectedOpIdx === i) setSelectedOpIdx(null);
+                        }} />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )}
+              <AddOpDropdown onAdd={(kind) => {
+                const template = OP_KINDS.find(k => k.kind === kind);
+                if (!template) return;
+                const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };
+                const nextOps = [...ops, newOp];
+                setChain({ ...chain, operations: nextOps });
+                setOpIds([...opIds, `op-${nextId.current++}`]);
+                saveOps(nextOps);
+              }} />
+            </div>
+
+            <div className="border-t border-gray-200 p-2 shrink-0">
+              <SchemaForm op={selectedOpIdx !== null ? ops[selectedOpIdx] : null} onChange={(params) => {
+                if (selectedOpIdx === null) return;
+                const nextOps = ops.map((op, i) => i === selectedOpIdx ? { ...op, params } : op) as Operation[];
+                setChain({ ...chain, operations: nextOps });
+                saveOps(nextOps);
+              }} />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {lightboxIdx !== null && (
         <div className="fixed inset-0 z-50 bg-black/70 flex flex-col items-center justify-center" onClick={() => { setLightboxIdx(null); setCompareMode("overlay"); }}>
