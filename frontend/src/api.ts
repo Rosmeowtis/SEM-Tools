@@ -82,4 +82,7 @@ export const api = {
 
   requestPreview: (pid: string, cid: string, rid?: string) =>
     req<{ accepted?: boolean; cached?: boolean }>(`/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`, { method: "POST" }),
+
+  exportUrl: (pid: string, cid: string, rid?: string) =>
+    `${BASE}/projects/${pid}/chains/${cid}/export${rid ? `?rid=${rid}` : ""}`,
 };

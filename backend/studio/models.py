@@ -88,8 +88,52 @@ class AnalyzeOp(BaseModel):
     mode: Literal["reduce"] = "reduce"
     params: AnalyzeParams = Field(default_factory=AnalyzeParams)
 
+
+class BlurParams(BaseModel):
+    ksize: int = 3
+
+class ThresholdParams(BaseModel):
+    threshold: int = 127
+
+class MorphologyParams(BaseModel):
+    type: Literal["open", "close"] = "open"
+    ksize: int = 3
+
+class InvertParams(BaseModel):
+    pass
+
+class FormatParams(BaseModel):
+    type: Literal["png", "jpg", "webp"] = "png"
+    quality: int = 85
+
+class BlurOp(BaseModel):
+    kind: Literal["blur"] = "blur"
+    mode: Literal["map"] = "map"
+    params: BlurParams = Field(default_factory=BlurParams)
+
+class ThresholdOp(BaseModel):
+    kind: Literal["threshold"] = "threshold"
+    mode: Literal["map"] = "map"
+    params: ThresholdParams = Field(default_factory=ThresholdParams)
+
+class MorphologyOp(BaseModel):
+    kind: Literal["morphology_ellipse"] = "morphology_ellipse"
+    mode: Literal["map"] = "map"
+    params: MorphologyParams = Field(default_factory=MorphologyParams)
+
+class InvertOp(BaseModel):
+    kind: Literal["invert"] = "invert"
+    mode: Literal["map"] = "map"
+    params: InvertParams = Field(default_factory=InvertParams)
+
+class FormatOp(BaseModel):
+    kind: Literal["format"] = "format"
+    mode: Literal["map"] = "map"
+    params: FormatParams = Field(default_factory=FormatParams)
+
 Operation = Annotated[
-    Union[CropOp, ResizeOp, GrayscaleOp, AnalyzeOp],
+    Union[CropOp, ResizeOp, GrayscaleOp, BlurOp, ThresholdOp,
+          MorphologyOp, InvertOp, FormatOp, AnalyzeOp],
     Field(discriminator="kind")
 ]
 

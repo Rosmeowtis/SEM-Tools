@@ -9,7 +9,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
-from engine import load_image, render_preview, save_image
+from engine import execute_chain, load_image, render_preview, save_image
 
 from database import (
     add_resource,
@@ -380,3 +380,39 @@ async def event_stream(chain_id: str | None = None):
 
     return StreamingResponse(gen(), media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+# --- Export route ---
+
+@app.post("/api/projects/{pid}/chains/{cid}/export")
+async def export_chain(pid: str, cid: str, rid: str | None = None):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    chain = db_get_chain(pid, cid)
+    if not chain:
+        raise HTTPException(404, "Chain not found")
+
+    cf = _chain_file(pid, p["slug"], cid)
+    operations = json.loads(cf.read_text()) if cf.exists() else []
+
+    resource_ids = json.loads(chain["resource_ids_json"])
+    targets = [rid] if rid and rid in resource_ids else resource_ids
+
+    resource_paths = []
+    for rid in targets:
+        r = db_get_resource(rid)
+        if r:
+            orig = _project_dir(pid, p["slug"]) / "resources" / "original" / f"{rid}.{r['ext']}"
+            if orig.exists():
+                resource_paths.append((rid, orig))
+
+    if not resource_paths:
+        raise HTTPException(400, "No resources found")
+
+    export_dir = _project_dir(pid, p["slug"]) / "output"
+    buf = execute_chain(resource_paths, operations, export_dir)
+
+    name = chain.get("name", "export")
+    return StreamingResponse(buf, media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{name}.zip"'})

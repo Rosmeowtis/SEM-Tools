@@ -3,7 +3,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { api, BASE } from "./api";
-import type { Chain, Operation, Project, ResourceMeta, StudioEvent } from "./types";
+import type { Chain, Operation, OperationParams, Project, ResourceMeta, StudioEvent } from "./types";
 import { OP_KINDS } from "./types";
 
 function useEventStream(chainId: string | null, onEvent: (e: StudioEvent) => void) {
@@ -569,7 +569,7 @@ function ChainEditorPage() {
             const newOp: Operation = {
               kind,
               mode: template.mode,
-              params: template.params,
+              params: template.params as OperationParams,
             };
             const nextOps = [...ops, newOp];
             setChain({ ...chain, operations: nextOps });
