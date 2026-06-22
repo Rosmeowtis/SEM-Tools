@@ -1,3 +1,4 @@
+/** 项目 */
 export interface Project {
   id: string;
   slug: string;

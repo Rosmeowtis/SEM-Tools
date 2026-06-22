@@ -1,13 +1,22 @@
+/** 类型化 API 封装。
+
+所有 API 返回 Promise<T>，非 2xx 响应抛 Error。
+上传（uploadResource）使用 XHR 实现可监控的上传进度。
+图片 URL（thumbUrl / resourceFullUrl / executeThumbUrl / executeFullUrl）
+返回字符串，直接用于 <img src>。
+*/
 import type { Chain, Operation, Preset, Project, ResourceMeta } from "./types";
 
 export const BASE = "/api";
 
+/** 通用 JSON fetch 封装。非 2xx 状态码抛错。 */
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(BASE + path, init);
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json();
 }
 
+/** 带上传进度的 XHR 文件上传。 */
 function xhrUpload<T>(
   path: string,
   file: File,
@@ -51,15 +60,18 @@ export const api = {
   listResources: (pid: string) =>
     req<ResourceMeta[]>(`/projects/${pid}/resources`),
 
+  /** 上传资源（支持进度回调）。 */
   uploadResource: (pid: string, file: File, onProgress?: (pct: number) => void) =>
     xhrUpload<ResourceMeta>(`/projects/${pid}/resources`, file, onProgress),
 
   deleteResource: (pid: string, sha1: string) =>
     req<{ deleted: boolean }>(`/projects/${pid}/resources/${sha1}`, { method: "DELETE" }),
 
+  /** 资源缩略图 URL（200px JPEG）。 */
   thumbUrl: (pid: string, sha1: string) =>
     `${BASE}/projects/${pid}/resources/${sha1}/thumb`,
 
+  /** 资源原尺寸图 URL。 */
   resourceFullUrl: (pid: string, sha1: string) =>
     `${BASE}/projects/${pid}/resources/${sha1}/full`,
 
@@ -80,22 +92,28 @@ export const api = {
   deleteChain: (pid: string, cid: string) =>
     req<{ deleted: boolean }>(`/projects/${pid}/chains/${cid}`, { method: "DELETE" }),
 
+  /** SSE 预览触发 URL。 */
   previewUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`,
 
+  /** 触发 SSE 实时预览。 */
   requestPreview: (pid: string, cid: string, rid?: string) =>
     req<{ accepted?: boolean; cached?: boolean }>(`/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`, { method: "POST" }),
 
+  /** ZIP 导出下载 URL。 */
   exportUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/export${rid ? `?rid=${rid}` : ""}`,
 
+  /** 全量执行链，返回处理结果缩略图索引 + 分析数据。 */
   executeChain: (pid: string, cid: string) =>
     req<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> }>(
       `/projects/${pid}/chains/${cid}/execute`, { method: "POST" }),
 
+  /** 执行结果缩略图 URL。 */
   executeThumbUrl: (pid: string, cid: string, idx: number) =>
     `${BASE}/projects/${pid}/chains/${cid}/execute-thumb/${idx}`,
 
+  /** 执行结果全尺寸图 URL。 */
   executeFullUrl: (pid: string, cid: string, idx: number) =>
     `${BASE}/projects/${pid}/chains/${cid}/execute-full/${idx}`,
 

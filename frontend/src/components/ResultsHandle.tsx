@@ -1,3 +1,4 @@
+/** 拖曳调整结果面板高度的手柄。向父容器底部拖拽改变高度。 */
 import { useEffect, useRef } from "react";
 
 export function ResultsHandle({ onResize }: { onResize: (h: number) => void }) {

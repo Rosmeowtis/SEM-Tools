@@ -1,3 +1,4 @@
+/** 全局命令面板（Ctrl+K）。搜索项目/链/预设并快速导航。 */
 import type { Project, Preset, Chain } from "../types";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";

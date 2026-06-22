@@ -1,3 +1,10 @@
+/** 侧边栏。左侧固定面板，显示项目列表 + 链列表 + 搜索 + 新项目/链创建。
+
+- 可拖曳右边框调整宽度（范围 240-500px）
+- 项目展开时自动加载链列表
+- 支持搜索过滤项目标题
+- 链创建后自动刷新列表
+*/
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";

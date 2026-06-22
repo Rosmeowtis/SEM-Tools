@@ -1,3 +1,4 @@
+/** 可点击编辑的链名称。点击进入内联编辑，失焦或回车保存。 */
 import type { Chain } from "../types";
 import { useEffect, useState } from "react";
 

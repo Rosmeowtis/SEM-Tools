@@ -1,3 +1,11 @@
+/** Chain 编辑器。
+
+核心页面：居中显示执行结果图片，右侧边栏显示操作列表（拖拽排序）和参数编辑表单。
+
+- 管道式执行：map 变换图像 / reduce 采集状态到 ChainState
+- 结果图片通过 execute-thumb/full URL 加载，使用 execRev 缓存破坏防止浏览器缓存
+- 灯箱模式支持单图、左右对照、半透明叠层三种查看方式
+*/
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
@@ -20,12 +28,12 @@ export function ChainEditorPage() {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("overlay");
   const [overlayOpacity, setOverlayOpacity] = useState(50);
-  const [execRev, setExecRev] = useState(0);
   const debounceRef = useRef<number | undefined>(undefined);
   const origRef = useRef<HTMLImageElement>(null);
   const [origSize, setOrigSize] = useState<{ w: number; h: number } | null>(null);
   const [rightWidth, setRightWidth] = useState(320);
   const rightPanelRef = useRef<HTMLDivElement>(null);
+  const [execRev, setExecRev] = useState(0);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
   // eslint-disable-next-line react-hooks/set-state-in-effect

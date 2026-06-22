@@ -1,3 +1,7 @@
+/** 根组件。管理项目/预设列表全局状态 + 路由分发 + CommandPalette。
+
+布局：左 Sidebar（固定） + 内容区（Routes）。
+*/
 import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api";

@@ -1,3 +1,4 @@
+/** 操作参数编辑表单。根据 OP_KINDS 定义动态渲染数字/选择字段。 */
 import type { Operation } from "../types";
 import { OP_KINDS } from "../types";
 
@@ -5,11 +6,11 @@ export function SchemaForm({ op, onChange }: {
   op: Operation | null;
   onChange: (params: Record<string, unknown>) => void;
 }) {
-  if (!op) return <div className="w-64 border-l border-gray-200 p-4 text-gray-400 text-sm">Select an operation</div>;
+  if (!op) return <div className="p-4 text-gray-400 text-sm">Select an operation</div>;
   const kindDef = OP_KINDS.find(k => k.kind === op.kind);
   if (!kindDef) return null;
   return (
-    <div className="w-64 border-l border-gray-200 p-4 text-sm">
+    <div className="p-4 text-sm">
       <div className="font-semibold mb-3">{kindDef.label}</div>
       {kindDef.fields.length === 0 && <div className="text-gray-400">No parameters</div>}
       {kindDef.fields.map(f => (

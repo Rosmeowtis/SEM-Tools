@@ -1,3 +1,8 @@
+/** 资源管理页面。
+
+显示项目下所有已上传图片，支持拖拽/多选批量上传、删除。
+上传使用 FormData + XHR，支持进度条展示。
+*/
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { api } from "../api";

@@ -1,3 +1,8 @@
+/** 预设管理页面。创建/编辑/删除可复用的操作链模板。
+
+编辑器布局与 ChainEditorPage 一致：左列表 + 右侧 SchemaForm 参数编辑，
+支持拖拽排序、添加/删除操作、保存到服务器。
+*/
 import { useEffect, useRef, useState } from "react";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";

@@ -1,3 +1,4 @@
+/** 可拖拽排序的操作项。显示操作名 + 模式 + 参数摘要 + 删除按钮。 */
 import type { Operation } from "../types";
 import { useSortable } from "@dnd-kit/sortable";
 
