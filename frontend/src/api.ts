@@ -60,6 +60,9 @@ export const api = {
   thumbUrl: (pid: string, sha1: string) =>
     `${BASE}/projects/${pid}/resources/${sha1}/thumb`,
 
+  resourceFullUrl: (pid: string, sha1: string) =>
+    `${BASE}/projects/${pid}/resources/${sha1}/full`,
+
   listChains: (pid: string) => req<Chain[]>(`/projects/${pid}/chains`),
   createChain: (pid: string, name: string, fromPreset?: string) =>
     req<Chain>(`/projects/${pid}/chains`, {

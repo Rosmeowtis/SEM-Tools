@@ -167,6 +167,22 @@ def get_thumbnail(pid: str, sha1: str):
     return FileResponse(thumb, media_type="image/jpeg")
 
 
+@app.get("/api/projects/{pid}/resources/{sha1}/full")
+def get_full_resource(pid: str, sha1: str):
+    r = db_get_resource(sha1)
+    if not r or r["project_id"] != pid:
+        raise HTTPException(404, "Resource not found")
+    project = db_get_project(pid)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    orig = _project_dir(pid, project["slug"]) / "resources" / "original" / f"{sha1}.{r['ext']}"
+    if not orig.exists():
+        raise HTTPException(404, "Original file not found")
+    ext = r["ext"].lower()
+    mt = {"jpg":"image/jpeg","jpeg":"image/jpeg","png":"image/png","webp":"image/webp","tif":"image/tiff","tiff":"image/tiff","bmp":"image/bmp"}.get(ext, "application/octet-stream")
+    return FileResponse(orig, media_type=mt)
+
+
 @app.delete("/api/projects/{pid}/resources/{sha1}")
 def delete_resource(pid: str, sha1: str):
     project = db_get_project(pid)

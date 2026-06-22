@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -21,13 +21,18 @@ export function ChainEditorPage() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(300);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("off");
+  const [overlayOpacity, setOverlayOpacity] = useState(50);
   const debounceRef = useRef<number | undefined>(undefined);
+  const origRef = useRef<HTMLImageElement>(null);
+  const [origSize, setOrigSize] = useState<{ w: number; h: number } | null>(null);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchChain(); setExecResult(null); setResultsOpen(false); }, [fetchChain]);
   useEffect(() => { if (chain) { const ids = chain.operations.map(() => `op-${nextId.current++}`); setOpIds(ids); } }, [chain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(debounceRef.current), []);
+  useEffect(() => { setOrigSize(null); }, [lightboxIdx]); // eslint-disable-line react-hooks/set-state-in-effect
 
   useEffect(() => {
     if (chain && pid) {
@@ -50,10 +55,27 @@ export function ChainEditorPage() {
     }, 200);
   }, [pid, cid]);
 
+  const ops = chain?.operations ?? []; // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resourceSHA = lightboxIdx !== null && chain ? chain.resource_ids[lightboxIdx] : "";
+
+  const cropPct = useMemo(() => {
+    if (!origSize || !chain) return null;
+    const firstMap = ops.find(op => op.mode === "map");
+    if (!firstMap || firstMap.kind !== "crop") return null;
+    const p = firstMap.params as { x: number; y: number; w: number; h: number };
+    const left = Math.max(0, Math.min(100, p.x / origSize.w * 100));
+    const top = Math.max(0, Math.min(100, p.y / origSize.h * 100));
+    return {
+      left,
+      top,
+      width: Math.max(0, Math.min(100 - left, p.w / origSize.w * 100)),
+      height: Math.max(0, Math.min(100 - top, p.h / origSize.h * 100)),
+    };
+  }, [origSize, chain, ops]);
+
   if (!pid || !cid) return <Navigate to="/" />;
   if (!chain) return <p className="p-4 text-gray-400">Loading...</p>;
-
-  const ops = chain.operations;
 
   return (
     <div className="flex flex-col h-full">
@@ -165,8 +187,49 @@ export function ChainEditorPage() {
       )}
 
       {lightboxIdx !== null && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center" onClick={() => setLightboxIdx(null)}>
-          <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)} className="max-w-[90vw] max-h-[90vh] object-contain" onClick={e => e.stopPropagation()} alt="Full" />
+        <div className="fixed inset-0 z-50 bg-black/70 flex flex-col items-center justify-center" onClick={() => { setLightboxIdx(null); setCompareMode("off"); }}>
+          <div className="flex-1 flex items-center justify-center min-h-0 min-w-0" onClick={e => e.stopPropagation()}>
+            {compareMode === "off" && (
+              <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)} className="max-w-[90vw] max-h-[90vh] object-contain" alt="Result" />
+            )}
+            {compareMode === "side" && (
+              <div className="flex gap-4 items-center max-w-[90vw] max-h-[90vh]">
+                <img src={api.resourceFullUrl(pid!, resourceSHA)} className="max-w-[calc(45vw-1rem)] max-h-[90vh] object-contain" alt="Original" />
+                <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)} className="max-w-[calc(45vw-1rem)] max-h-[90vh] object-contain" alt="Processed" />
+              </div>
+            )}
+            {compareMode === "overlay" && (
+              <div className="relative inline-block">
+                <img ref={origRef} src={api.resourceFullUrl(pid!, resourceSHA)}
+                  onLoad={() => { if (origRef.current) setOrigSize({ w: origRef.current.naturalWidth, h: origRef.current.naturalHeight }); }}
+                  className="max-w-[90vw] max-h-[90vh] object-contain block" alt="Original" />
+                <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)}
+                  className="absolute object-contain"
+                  style={{
+                    left: cropPct ? `${cropPct.left}%` : '50%',
+                    top: cropPct ? `${cropPct.top}%` : '50%',
+                    width: cropPct ? `${cropPct.width}%` : 'auto',
+                    height: cropPct ? `${cropPct.height}%` : 'auto',
+                    maxWidth: cropPct ? '100%' : '90vw',
+                    maxHeight: cropPct ? '100%' : '90vh',
+                    opacity: overlayOpacity / 100,
+                    transform: cropPct ? 'none' : 'translate(-50%, -50%)',
+                  }}
+                  alt="Processed" />
+              </div>
+            )}
+          </div>
+          <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-black/50 text-white text-sm" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setCompareMode("off")} className={`px-3 py-1 rounded ${compareMode === "off" ? "bg-white/20" : "hover:bg-white/10 transition-colors"}`}>Result</button>
+            <button onClick={() => setCompareMode("side")} className={`px-3 py-1 rounded ${compareMode === "side" ? "bg-white/20" : "hover:bg-white/10 transition-colors"}`}>Side by Side</button>
+            <button onClick={() => setCompareMode("overlay")} className={`px-3 py-1 rounded ${compareMode === "overlay" ? "bg-white/20" : "hover:bg-white/10 transition-colors"}`}>Overlay</button>
+            {compareMode === "overlay" && (
+              <div className="flex items-center gap-2 ml-2">
+                <input type="range" min={0} max={100} value={overlayOpacity} onChange={e => setOverlayOpacity(Number(e.target.value))} className="w-24 accent-white" />
+                <span className="text-xs w-8 tabular-nums">{overlayOpacity}%</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
