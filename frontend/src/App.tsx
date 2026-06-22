@@ -58,7 +58,7 @@ function Sidebar({
     };
     const onMove = (e: MouseEvent) => {
       if (!dragging) return;
-      setSidebarWidth(Math.max(200, Math.min(500, e.clientX)));
+      setSidebarWidth(Math.max(240, Math.min(500, e.clientX)));
     };
     const onUp = () => {
       dragging = false;
