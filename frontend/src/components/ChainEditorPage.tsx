@@ -175,8 +175,8 @@ export function ChainEditorPage() {
                   {execResult.images.map(img => (
                     <div key={img.index} className="shrink-0">
                       <img src={api.executeThumbUrl(pid!, cid!, img.index)} className="h-24 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
-                        alt={img.filename} onClick={() => setLightboxIdx(img.index)} />
-                      <div className="text-xs text-gray-500 truncate w-20">{img.filename}</div>
+                        alt={img.filename} title={img.filename} onClick={() => setLightboxIdx(img.index)} />
+                      <div className="text-xs text-gray-500 truncate" title={img.filename}>{img.filename}</div>
                     </div>
                   ))}
                 </div>
