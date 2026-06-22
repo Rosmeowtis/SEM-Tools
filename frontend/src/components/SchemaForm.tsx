@@ -2,6 +2,13 @@
 import type { Operation } from "../types";
 import { OP_KINDS } from "../types";
 
+function HelpIcon({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-gray-300 text-white text-[10px] leading-none cursor-help ml-1" title={text}>?</span>
+  );
+}
+
 export function SchemaForm({ op, onChange }: {
   op: Operation | null;
   onChange: (params: Record<string, unknown>) => void;
@@ -11,11 +18,11 @@ export function SchemaForm({ op, onChange }: {
   if (!kindDef) return null;
   return (
     <div className="p-4 text-sm">
-      <div className="font-semibold mb-3">{kindDef.label}</div>
+      <div className="font-semibold mb-3">{kindDef.label}<HelpIcon text={kindDef.help} /></div>
       {kindDef.fields.length === 0 && <div className="text-gray-400">No parameters</div>}
       {kindDef.fields.map(f => (
         <div key={f.key} className="mb-2">
-          <label className="text-xs text-gray-500 block">{f.label}</label>
+          <label className="text-xs text-gray-500 block">{f.label}<HelpIcon text={f.help} /></label>
           {f.type === "number" ? (
             <input type="number" className="w-full border border-gray-300 rounded px-2 py-0.5 text-sm"
               value={(op.params as Record<string, unknown>)[f.key] as number ?? f.default}
