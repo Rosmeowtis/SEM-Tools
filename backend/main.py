@@ -100,7 +100,7 @@ def get_project(pid: str):
 
 @app.patch("/api/projects/{pid}")
 def patch_project(pid: str, data: ProjectUpdate):
-    p = db_update_project(pid, data.title, data.note, now())
+    p = db_update_project(pid, data.title, data.note, data.tags, now())
     if not p:
         raise HTTPException(404, "Project not found")
     return p

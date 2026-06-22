@@ -26,6 +26,8 @@ function Sidebar({
   onCreateProject,
   onCreateChain,
   currentPid,
+  onProjectsChanged,
+  onChainsChanged,
 }: {
   projects: Project[];
   presets: Preset[];
@@ -33,16 +35,32 @@ function Sidebar({
   onCreateProject: (title: string) => void;
   onCreateChain: (pid: string, name: string, fromPreset?: string) => void;
   currentPid?: string;
+  onProjectsChanged: () => void;
+  onChainsChanged: (chains: Record<string, Chain[]>) => void;
 }) {
   const [title, setTitle] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [chains, setChains] = useState<Record<string, Chain[]>>({});
   const [newChainName, setNewChainName] = useState<Record<string, string>>({});
   const [newChainPreset, setNewChainPreset] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState("");
+  const [editingTags, setEditingTags] = useState<Record<string, string>>({});
+
+  const filtered = projects.filter(p => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return p.title.toLowerCase().includes(q) || p.tags.toLowerCase().includes(q);
+  });
 
   const fetchChains = useCallback((pid: string) => {
-    api.listChains(pid).then((list) => setChains((prev) => ({ ...prev, [pid]: list })));
-  }, []);
+    api.listChains(pid).then((list) => {
+      setChains((prev) => {
+        const next = { ...prev, [pid]: list };
+        onChainsChanged(next);
+        return next;
+      });
+    });
+  }, [onChainsChanged]);
 
   const handleToggleExpand = (pid: string) => {
     setExpanded((prev) => {
@@ -69,6 +87,12 @@ function Sidebar({
       <div className="p-3 font-semibold text-gray-800 border-b border-gray-200">
         SEM-Tools
       </div>
+      <input
+        className="mx-2 mt-2 mb-1 px-2 py-1 border border-gray-300 rounded text-sm"
+        placeholder="Search..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+      />
       <form
         className="p-2 flex gap-1"
         onSubmit={(e) => {
@@ -93,7 +117,7 @@ function Sidebar({
         </button>
       </form>
       <div className="flex-1 overflow-auto">
-        {projects.map((p) => (
+        {filtered.map((p) => (
           <div key={p.id}>
             <div
               className={`flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-200 ${
@@ -127,6 +151,27 @@ function Sidebar({
             </div>
             {expanded[p.id] && (
               <div className="pl-7 border-l border-gray-200 ml-3">
+                <div className="px-2 py-1">
+                  <input
+                    className="w-full px-1 py-0.5 border border-gray-200 rounded text-xs text-gray-500"
+                    placeholder="tags: sem, porosity, ..."
+                    value={editingTags[p.id] ?? p.tags}
+                    onChange={e => {
+                      setEditingTags(prev => ({ ...prev, [p.id]: e.target.value }));
+                    }}
+                    onBlur={e => {
+                      const raw = e.target.value;
+                      const normalized = raw.split(",").map(s => s.trim()).filter(Boolean).join(", ");
+                      api.updateProject(p.id, { tags: normalized }).then(() => {
+                        setEditingTags(prev => { const next = { ...prev }; delete next[p.id]; return next; });
+                        onProjectsChanged();
+                      }).catch(() => onProjectsChanged());
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                    }}
+                  />
+                </div>
                 {(chains[p.id] || []).map((c) => (
                   <Link
                     key={c.id}
@@ -737,9 +782,94 @@ function PresetsPage() {
   );
 }
 
+function CommandPalette({ projects, presets, chains, onCreateProject, onClose }: {
+  projects: Project[];
+  presets: Preset[];
+  chains: Record<string, Chain[]>;
+  onCreateProject: (title: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const navigate = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const commands = [
+    { label: "Create Project", type: "action" as const, keywords: "new project" },
+    { label: "Presets", type: "route" as const, path: "/tools/presets", keywords: "presets manage" },
+    ...projects.map(p => ({
+      label: `Project: ${p.title}`, type: "route" as const,
+      path: `/projects/${p.id}`, keywords: p.title + " " + p.tags,
+    })),
+    ...Object.entries(chains).flatMap(([pid, cs]) =>
+      cs.map(c => ({
+        label: `Chain: ${c.name}`, type: "route" as const,
+        path: `/projects/${pid}/chains/${c.id}`, keywords: c.name,
+      }))
+    ),
+    ...presets.map(p => ({
+      label: `Preset: ${p.name}`, type: "route" as const,
+      path: "/tools/presets", keywords: p.name + " " + p.category.join(" "),
+    })),
+  ];
+
+  const filtered = commands
+    .filter(c => c.label.toLowerCase().includes(query.toLowerCase()) ||
+                 c.keywords.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 12);
+
+  const execute = (cmd: typeof filtered[0]) => {
+    if (!cmd) return;
+    if (cmd.type === "route") navigate(cmd.path);
+    if (cmd.type === "action") onCreateProject("Untitled");
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 flex items-start justify-center pt-[15vh]"
+      onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-2xl w-[500px] max-h-[400px] overflow-hidden border"
+        onClick={e => e.stopPropagation()}>
+        <input ref={inputRef}
+          className="w-full px-4 py-3 text-lg border-b border-gray-200 outline-none"
+          placeholder="Type a command or search..."
+          value={query}
+          onChange={e => { setQuery(e.target.value); setSelectedIdx(0); }}
+          onKeyDown={e => {
+            if (e.key === "Escape") onClose();
+            if (e.key === "ArrowDown") { e.preventDefault(); setSelectedIdx(i => Math.min(i + 1, filtered.length - 1)); }
+            if (e.key === "ArrowUp") { e.preventDefault(); setSelectedIdx(i => Math.max(i - 1, 0)); }
+            if (e.key === "Enter") execute(filtered[selectedIdx]);
+          }} />
+        <div className="overflow-auto max-h-[300px]">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-6 text-gray-400 text-sm text-center">No results</div>
+          ) : (
+            filtered.map((c, i) => (
+              <div key={i}
+                className={`px-4 py-2 text-sm cursor-pointer flex items-center gap-2 ${
+                  i === selectedIdx ? 'bg-blue-50 text-blue-700' : 'hover:bg-gray-50'
+                }`}
+                onClick={() => execute(c)}>
+                <span className="text-gray-400 text-xs w-4">
+                  {c.type === "action" ? "+" : c.label.startsWith("Project") ? "P" : c.label.startsWith("Preset") ? "R" : "C"}
+                </span>
+                {c.label}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [globalChains, setGlobalChains] = useState<Record<string, Chain[]>>({});
   const navigate = useNavigate();
   const location = useLocation();
   const currentPid = location.pathname.split("/")[2];
@@ -750,6 +880,18 @@ export default function App() {
 
   useEffect(fetchProjects, []);
   useEffect(() => { api.listPresets().then(setPresets); }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen(prev => !prev);
+      }
+      if (e.key === "Escape" && paletteOpen) setPaletteOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [paletteOpen]);
 
   const handleCreateProject = (title: string) => {
     api.createProject(title).then((p) => {
@@ -780,6 +922,8 @@ export default function App() {
         onCreateProject={handleCreateProject}
         onCreateChain={handleCreateChain}
         currentPid={currentPid}
+        onProjectsChanged={fetchProjects}
+        onChainsChanged={setGlobalChains}
       />
       <div className="flex-1 overflow-auto">
         <Routes>
@@ -789,6 +933,15 @@ export default function App() {
           <Route path="/tools/presets" element={<PresetsPage />} />
         </Routes>
       </div>
+      {paletteOpen && (
+        <CommandPalette
+          projects={projects}
+          presets={presets}
+          chains={globalChains}
+          onCreateProject={handleCreateProject}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
     </div>
   );
 }
