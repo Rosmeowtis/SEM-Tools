@@ -52,6 +52,26 @@ def apply_map_op(img: np.ndarray, op: dict) -> np.ndarray:
         return cv2.bitwise_not(img)
     elif kind == "format":
         return img
+    elif kind == "auto_threshold":
+        gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten().astype(np.float32)
+        peak = int(np.argmax(hist))
+        left = 0
+        for i in range(peak):
+            if hist[i] > 0:
+                left = i
+                break
+        max_dist = -1.0
+        best_thresh = left
+        for i in range(left, peak):
+            dist = abs((peak - left) * (hist[i] - hist[left]) - (i - left) * (hist[peak] - hist[left]))
+            if dist > max_dist:
+                max_dist = dist
+                best_thresh = i
+        offset = params.get("offset", 0)
+        final_thresh = max(0, min(255, best_thresh + offset))
+        _, binary = cv2.threshold(gray, final_thresh, 255, cv2.THRESH_BINARY)
+        return binary
     return img
 
 

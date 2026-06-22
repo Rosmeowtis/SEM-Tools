@@ -116,6 +116,14 @@ class ThresholdOp(BaseModel):
     mode: Literal["map"] = "map"
     params: ThresholdParams = Field(default_factory=ThresholdParams)
 
+class AutoThresholdParams(BaseModel):
+    offset: int = 0
+
+class AutoThresholdOp(BaseModel):
+    kind: Literal["auto_threshold"] = "auto_threshold"
+    mode: Literal["map"] = "map"
+    params: AutoThresholdParams = Field(default_factory=AutoThresholdParams)
+
 class MorphologyOp(BaseModel):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
     mode: Literal["map"] = "map"
@@ -132,7 +140,7 @@ class FormatOp(BaseModel):
     params: FormatParams = Field(default_factory=FormatParams)
 
 Operation = Annotated[
-    Union[CropOp, ResizeOp, GrayscaleOp, BlurOp, ThresholdOp,
+    Union[CropOp, ResizeOp, GrayscaleOp, BlurOp, ThresholdOp, AutoThresholdOp,
           MorphologyOp, InvertOp, FormatOp, AnalyzeOp],
     Field(discriminator="kind")
 ]

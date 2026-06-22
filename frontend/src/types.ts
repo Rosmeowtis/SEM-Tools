@@ -23,12 +23,13 @@ export type OperationParams =
   | { type: "porosity" | "statistics" | "distribution" }
   | { ksize: number }
   | { threshold: number }
+  | { offset: number }
   | { type: "open" | "close"; ksize: number }
   | { type: "png" | "jpg" | "webp"; quality: number };
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "morphology_ellipse" | "invert" | "format";
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -70,6 +71,8 @@ export const OP_KINDS = [
     fields: [{ key:"ksize", label:"Kernel Size", type:"number", default:3 }] as FieldDef[] },
   { kind: "threshold" as const, mode: "map" as const,    params: { threshold:127 }, label: "Threshold",
     fields: [{ key:"threshold", label:"Threshold", type:"number", default:127 }] as FieldDef[] },
+  { kind: "auto_threshold" as const, mode: "map" as const, params: { offset:0 }, label: "Auto Threshold",
+    fields: [{ key:"offset", label:"Offset", type:"number", default:0 }] as FieldDef[] },
   { kind: "morphology_ellipse" as const, mode: "map" as const, params: { type:"open" as const, ksize:3 }, label: "Morphology",
     fields: [
       { key:"type", label:"Type", type:"select", options:["open","close"], default:"open" },
