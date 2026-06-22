@@ -20,6 +20,7 @@ export function ChainEditorPage() {
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("overlay");
   const [overlayOpacity, setOverlayOpacity] = useState(50);
+  const [execRev, setExecRev] = useState(0);
   const debounceRef = useRef<number | undefined>(undefined);
   const origRef = useRef<HTMLImageElement>(null);
   const [origSize, setOrigSize] = useState<{ w: number; h: number } | null>(null);
@@ -82,7 +83,7 @@ export function ChainEditorPage() {
         <ChainTitle chain={chain} onRename={(name) => { if (pid && cid) api.updateChain(pid, cid, { name }).then(setChain); }} />
         <div className="flex gap-2 ml-auto">
           <button className="px-4 py-1.5 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
-            onClick={() => { if (pid && cid) api.executeChain(pid, cid).then(setExecResult); }}>
+            onClick={() => { if (pid && cid) api.executeChain(pid, cid).then(r => { setExecResult(r); setExecRev(v => v + 1); }); }}>
             Execute
           </button>
           <button className="px-4 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
@@ -112,7 +113,7 @@ export function ChainEditorPage() {
               <div className="flex flex-wrap gap-3">
                 {execResult.images.map(img => (
                   <div key={img.index} className="shrink-0">
-                    <img src={api.executeThumbUrl(pid!, cid!, img.index)} className="h-28 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
+                    <img src={api.executeThumbUrl(pid!, cid!, img.index) + (execRev ? `?v=${execRev}` : '')} className="h-28 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
                       alt={img.filename} title={img.filename} onClick={() => setLightboxIdx(img.index)} />
                     <div className="text-xs text-gray-500 truncate mt-0.5" title={img.filename} style={{ maxWidth: 112 }}>{img.filename}</div>
                   </div>
@@ -207,12 +208,12 @@ export function ChainEditorPage() {
         <div className="fixed inset-0 z-50 bg-black/70 flex flex-col items-center justify-center" onClick={() => { setLightboxIdx(null); setCompareMode("overlay"); }}>
           <div className="flex-1 flex items-center justify-center min-h-0 min-w-0" onClick={e => e.stopPropagation()}>
             {compareMode === "off" && (
-              <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)} className="max-w-[90vw] max-h-[90vh] object-contain" alt="Result" />
+              <img src={api.executeFullUrl(pid!, cid!, lightboxIdx) + `?v=${execRev}`} className="max-w-[90vw] max-h-[90vh] object-contain" alt="Result" />
             )}
             {compareMode === "side" && (
               <div className="flex gap-4 items-center max-w-[90vw] max-h-[90vh]">
                 <img src={api.resourceFullUrl(pid!, resourceSHA)} className="max-w-[calc(45vw-1rem)] max-h-[90vh] object-contain" alt="Original" />
-                <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)} className="max-w-[calc(45vw-1rem)] max-h-[90vh] object-contain" alt="Processed" />
+                <img src={api.executeFullUrl(pid!, cid!, lightboxIdx) + `?v=${execRev}`} className="max-w-[calc(45vw-1rem)] max-h-[90vh] object-contain" alt="Processed" />
               </div>
             )}
             {compareMode === "overlay" && (
@@ -220,7 +221,7 @@ export function ChainEditorPage() {
                 <img ref={origRef} src={api.resourceFullUrl(pid!, resourceSHA)}
                   onLoad={() => { if (origRef.current) setOrigSize({ w: origRef.current.naturalWidth, h: origRef.current.naturalHeight }); }}
                   className="max-w-[90vw] max-h-[90vh] object-contain block" alt="Original" />
-                <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)}
+                <img src={api.executeFullUrl(pid!, cid!, lightboxIdx) + `?v=${execRev}`}
                   className="absolute object-contain"
                   style={{
                     left: cropPct ? `${cropPct.left}%` : '50%',
