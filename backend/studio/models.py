@@ -119,10 +119,18 @@ class ThresholdOp(BaseModel):
 class AutoThresholdParams(BaseModel):
     offset: int = 0
 
+class TophatParams(BaseModel):
+    ksize: int = 81
+
 class AutoThresholdOp(BaseModel):
     kind: Literal["auto_threshold"] = "auto_threshold"
     mode: Literal["map"] = "map"
     params: AutoThresholdParams = Field(default_factory=AutoThresholdParams)
+
+class TophatOp(BaseModel):
+    kind: Literal["tophat"] = "tophat"
+    mode: Literal["map"] = "map"
+    params: TophatParams = Field(default_factory=TophatParams)
 
 class MorphologyOp(BaseModel):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
@@ -141,7 +149,7 @@ class FormatOp(BaseModel):
 
 Operation = Annotated[
     Union[CropOp, ResizeOp, GrayscaleOp, BlurOp, ThresholdOp, AutoThresholdOp,
-          MorphologyOp, InvertOp, FormatOp, AnalyzeOp],
+          MorphologyOp, InvertOp, FormatOp, TophatOp, AnalyzeOp],
     Field(discriminator="kind")
 ]
 

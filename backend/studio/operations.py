@@ -75,6 +75,16 @@ def op_auto_threshold(img: np.ndarray, params: dict) -> np.ndarray:
     return binary
 
 
+def op_tophat(img: np.ndarray, params: dict) -> np.ndarray:
+    k = params.get("ksize", 81)
+    if k % 2 == 0:
+        k += 1
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
+    background = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel)
+    return cv2.subtract(gray, background)
+
+
 # --- Reduce (analyze) operations ---
 
 
@@ -239,6 +249,7 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "invert": op_invert,
     "format": op_format,
     "auto_threshold": op_auto_threshold,
+    "tophat": op_tophat,
 }
 
 

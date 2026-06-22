@@ -29,7 +29,7 @@ export type OperationParams =
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format";
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -79,6 +79,8 @@ export const OP_KINDS = [
       { key:"ksize", label:"Kernel Size", type:"number", default:3 },
     ] as FieldDef[] },
   { kind: "invert" as const,    mode: "map" as const,    params: {} as Record<string,never>, label: "Invert", fields: [] as FieldDef[] },
+  { kind: "tophat" as const,   mode: "map" as const,    params: { ksize:81 }, label: "Tophat",
+    fields: [{ key:"ksize", label:"Kernel Size", type:"number", default:81 }] as FieldDef[] },
   { kind: "format" as const,    mode: "map" as const,    params: { type:"png" as const, quality:85 }, label: "Format",
     fields: [
       { key:"type", label:"Type", type:"select", options:["png","jpg","webp"], default:"png" },
