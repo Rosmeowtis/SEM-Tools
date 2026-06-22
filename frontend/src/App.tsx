@@ -2,22 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { api, BASE } from "./api";
-import type { Chain, Operation, OperationParams, Preset, Project, ResourceMeta, StudioEvent } from "./types";
+import { api } from "./api";
+import type { Chain, Operation, OperationParams, Preset, Project, ResourceMeta } from "./types";
 import { OP_KINDS } from "./types";
-
-function useEventStream(chainId: string | null, onEvent: (e: StudioEvent) => void) {
-  useEffect(() => {
-    if (!chainId) return;
-    const es = new EventSource(`${BASE}/events?chain_id=${chainId}`);
-    const handler = (e: MessageEvent) => onEvent(JSON.parse(e.data));
-    es.addEventListener("preview.progress", handler);
-    es.addEventListener("preview.complete", handler);
-    es.addEventListener("preview.error", handler);
-    return () => es.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chainId]);
-}
 
 function Sidebar({
   projects,
@@ -357,45 +344,16 @@ function ChainTitle({ chain, onRename }: {
 
   if (editing) return (
     <input
-      className="px-4 py-2 text-lg font-semibold border-b border-gray-200 outline-none"
+      className="text-lg font-semibold outline-none flex-1"
       value={name} autoFocus
       onChange={e => setName(e.target.value)}
       onBlur={() => { onRename(name); setEditing(false); }}
       onKeyDown={e => { if (e.key === 'Enter') { (e.target as HTMLInputElement).blur(); } }} />
   );
   return (
-    <div className="px-4 py-2 text-lg font-semibold border-b border-gray-200 cursor-pointer"
+    <div className="text-lg font-semibold cursor-pointer flex-1"
       onClick={() => setEditing(true)}>
       {chain.name}
-    </div>
-  );
-}
-
-function ResourceChips({ resources, boundIds, selectedRid, onToggle, onSelect }: {
-  resources: ResourceMeta[]; boundIds: string[]; selectedRid: string | null;
-  onToggle: (sha1: string) => void;
-  onSelect: (sha1: string) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 px-4 py-1 border-b border-gray-200 text-sm">
-      <span className="text-gray-500 mr-1">Resources:</span>
-      {resources.filter(r => boundIds.includes(r.sha1)).map(r => (
-        <span key={r.sha1}
-          onClick={() => onSelect(r.sha1)}
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs cursor-pointer ${
-            selectedRid === r.sha1 ? 'bg-blue-200 text-blue-800 ring-2 ring-blue-400' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-          }`}>
-          {r.filename}
-          <button onClick={(e) => { e.stopPropagation(); onToggle(r.sha1); }} className="hover:text-red-500">×</button>
-        </span>
-      ))}
-      <select className="text-xs border border-gray-200 rounded px-1" value=""
-        onChange={(e) => { if (e.target.value) { onToggle(e.target.value); e.target.value = ""; } }}>
-        <option value="">+ Bind</option>
-        {resources.filter(r => !boundIds.includes(r.sha1)).map(r => (
-          <option key={r.sha1} value={r.sha1}>{r.filename}</option>
-        ))}
-      </select>
     </div>
   );
 }
@@ -478,49 +436,35 @@ function AddOpDropdown({ onAdd }: { onAdd: (kind: Operation["kind"]) => void }) 
 function ChainEditorPage() {
   const { pid, cid } = useParams<{ pid: string; cid: string }>();
   const [chain, setChain] = useState<Chain | null>(null);
-  const [resources, setResources] = useState<ResourceMeta[]>([]);
   const nextId = useRef(0);
   const [opIds, setOpIds] = useState<string[]>([]);
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
-  const [previewTarget, setPreviewTarget] = useState<string | null>(null);
-  const [previewGen, setPreviewGen] = useState(0);
-  const [previewProgress, setPreviewProgress] = useState<number | null>(null);
-  const [previewThumb, setPreviewThumb] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState<string | null>(null);
-  const previewDebounce = useRef<number | undefined>(undefined);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
-  const fetchResources = useCallback(() => { if (pid) api.listResources(pid).then(setResources); }, [pid]);
-  useEffect(() => { fetchChain(); fetchResources(); }, [fetchChain, fetchResources]);
+  useEffect(() => { fetchChain(); }, [fetchChain]);
   useEffect(() => { if (chain) { const ids = chain.operations.map(() => `op-${nextId.current++}`); setOpIds(ids); } }, [chain?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => clearTimeout(debounceRef.current), []);
 
-  const saveAndPreview = useCallback((ops: Operation[]) => {
+  // 自动绑定项目所有资源
+  useEffect(() => {
+    if (chain && pid && chain.resource_ids.length === 0) {
+      api.listResources(pid).then(res => {
+        const ids = res.map(r => r.sha1);
+        if (ids.length > 0) {
+          api.updateChain(pid, chain.id, { resource_ids: ids }).then(setChain);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chain?.id, pid]);
+
+  const saveOps = useCallback((ops: Operation[]) => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       if (pid && cid) api.updateChain(pid, cid, { operations: ops }).then(setChain);
     }, 200);
-    clearTimeout(previewDebounce.current);
-    previewDebounce.current = setTimeout(() => {
-      if (pid && cid && previewTarget) {
-        setPreviewError(null);
-        setPreviewGen(g => g + 1);
-        api.requestPreview(pid, cid, previewTarget);
-      }
-    }, 300);
-  }, [pid, cid, previewTarget]);
-
-  useEventStream(cid ?? null, (e: StudioEvent) => {
-    if (e.gen !== previewGen) return;
-    if (e.type === "preview.progress") setPreviewProgress(e.progress);
-    if (e.type === "preview.complete") { setPreviewProgress(null); setPreviewThumb(e.thumb_sha1); }
-    if (e.type === "preview.error") { setPreviewProgress(null); setPreviewError(e.message); }
-  });
-
-  useEffect(() => { if (previewTarget) { clearTimeout(previewDebounce.current); previewDebounce.current = setTimeout(() => { if (pid && cid) { setPreviewError(null); setPreviewGen(g => g + 1); api.requestPreview(pid, cid, previewTarget); } }, 300); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewTarget]);
+  }, [pid, cid]);
 
   if (!pid || !cid) return <Navigate to="/" />;
   if (!chain) return <p className="p-4 text-gray-400">Loading...</p>;
@@ -529,22 +473,25 @@ function ChainEditorPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <ChainTitle chain={chain} onRename={(name) => {
-        if (pid && cid) api.updateChain(pid, cid, { name }).then(setChain);
-      }} />
-
-      <ResourceChips
-        resources={resources}
-        boundIds={chain.resource_ids}
-        selectedRid={previewTarget}
-        onToggle={(sha1) => {
-          const next = chain.resource_ids.includes(sha1)
-            ? chain.resource_ids.filter(id => id !== sha1)
-            : [...chain.resource_ids, sha1];
-          api.updateChain(pid, cid, { resource_ids: next }).then(setChain);
-        }}
-        onSelect={(sha1) => setPreviewTarget(sha1)}
-      />
+      <div className="flex items-center px-4 py-2 border-b border-gray-200">
+        <ChainTitle chain={chain} onRename={(name) => {
+          if (pid && cid) api.updateChain(pid, cid, { name }).then(setChain);
+        }} />
+        <button
+          className="ml-auto px-4 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
+          onClick={() => {
+            fetch(api.exportUrl(pid!, cid!), { method: "POST" })
+              .then(r => r.blob())
+              .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = `${chain.name}-export.zip`;
+                a.click(); URL.revokeObjectURL(url);
+              });
+          }}>
+          Execute
+        </button>
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-auto p-4">
@@ -569,7 +516,7 @@ function ChainEditorPage() {
                 nextIds.splice(newIdx, 0, movedId);
                 setChain({ ...chain, operations: nextOps });
                 setOpIds(nextIds);
-                saveAndPreview(nextOps);
+                saveOps(nextOps);
               }}
             >
               <SortableContext items={opIds} strategy={verticalListSortingStrategy}>
@@ -585,7 +532,7 @@ function ChainEditorPage() {
                       const nextIds = opIds.filter((_, j) => j !== i);
                       setChain({ ...chain, operations: next });
                       setOpIds(nextIds);
-                      saveAndPreview(next);
+                      saveOps(next);
                       if (selectedOpIdx === i) setSelectedOpIdx(null);
                     }}
                   />
@@ -605,26 +552,9 @@ function ChainEditorPage() {
             const nextOps = [...ops, newOp];
             setChain({ ...chain, operations: nextOps });
             setOpIds([...opIds, `op-${nextId.current++}`]);
-            saveAndPreview(nextOps);
+            saveOps(nextOps);
           }} />
 
-          {previewTarget && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              {previewError ? (
-                <p className="text-red-500 text-sm">{previewError}</p>
-              ) : previewProgress !== null ? (
-                <div className="h-2 bg-gray-200 rounded overflow-hidden">
-                  <div className="h-full bg-blue-500 transition-all duration-100"
-                    style={{ width: `${previewProgress}%` }} />
-                </div>
-              ) : previewThumb ? (
-                <img src={api.thumbUrl(pid!, previewThumb)}
-                  className="max-w-full h-48 object-contain border rounded bg-gray-50" alt="Preview" />
-              ) : (
-                <p className="text-gray-400 text-sm">Click a resource chip to preview</p>
-              )}
-            </div>
-          )}
         </div>
 
         <SchemaForm op={selectedOpIdx !== null ? ops[selectedOpIdx] : null}
@@ -634,7 +564,7 @@ function ChainEditorPage() {
               i === selectedOpIdx ? { ...op, params } : op
             ) as Operation[];
             setChain({ ...chain, operations: nextOps });
-            saveAndPreview(nextOps);
+            saveOps(nextOps);
           }} />
       </div>
     </div>
