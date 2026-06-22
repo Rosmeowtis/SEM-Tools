@@ -10,18 +10,25 @@ from fastapi.responses import FileResponse
 
 from database import (
     add_resource,
+    create_chain as db_create_chain,
     create_project as db_create_project,
+    delete_chain as db_delete_chain,
     delete_project as db_delete_project,
     delete_resource as db_delete_resource,
+    get_chain as db_get_chain,
     get_project as db_get_project,
     get_resource as db_get_resource,
     init_db,
+    list_chains as db_list_chains,
     list_projects as db_list_projects,
     list_resources as db_list_resources,
+    update_chain as db_update_chain,
     update_project as db_update_project,
 )
 from studio.config import DATA_DIR, THUMB_CACHE_DIR
 from studio.models import (
+    ChainCreate,
+    ChainUpdate,
     Project,
     ProjectCreate,
     ProjectUpdate,
@@ -178,3 +185,90 @@ def delete_resource(pid: str, sha1: str):
         thumb.unlink()
 
     return {"deleted": True}
+
+
+# --- Chain routes ---
+
+def _chain_file(pid: str, slug: str, cid: str) -> Path:
+    return DATA_DIR / "projects" / f"{pid}-{slug}" / "chains" / f"{cid}.json"
+
+
+@app.get("/api/projects/{pid}/chains")
+def list_chains(pid: str):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    chains = db_list_chains(pid)
+    for c in chains:
+        cf = _chain_file(pid, p["slug"], c["id"])
+        if cf.exists():
+            c["operations"] = json.loads(cf.read_text())
+        else:
+            c["operations"] = []
+        c["resource_ids"] = json.loads(c["resource_ids_json"])
+        del c["resource_ids_json"]
+    return chains
+
+
+@app.post("/api/projects/{pid}/chains")
+def create_chain(pid: str, data: ChainCreate):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    cid = new_id()
+    ts = now()
+    chain = db_create_chain(pid, cid, data.name, data.resource_ids, ts)
+    (DATA_DIR / "projects" / f"{pid}-{p['slug']}" / "chains").mkdir(parents=True, exist_ok=True)
+    _chain_file(pid, p["slug"], cid).write_text("[]")
+    chain["operations"] = []
+    return chain
+
+
+@app.get("/api/projects/{pid}/chains/{cid}")
+def get_chain(pid: str, cid: str):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    chain = db_get_chain(pid, cid)
+    if not chain:
+        raise HTTPException(404, "Chain not found")
+    cf = _chain_file(pid, p["slug"], cid)
+    operations = json.loads(cf.read_text()) if cf.exists() else []
+    chain["resource_ids"] = json.loads(chain["resource_ids_json"])
+    del chain["resource_ids_json"]
+    chain["operations"] = operations
+    return chain
+
+
+@app.patch("/api/projects/{pid}/chains/{cid}")
+def patch_chain(pid: str, cid: str, data: ChainUpdate):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    rids_json = json.dumps(data.resource_ids) if data.resource_ids is not None else None
+    chain = db_update_chain(cid, data.name, rids_json, now())
+    if not chain:
+        raise HTTPException(404, "Chain not found")
+    if data.operations is not None:
+        _chain_file(pid, p["slug"], cid).write_text(
+            json.dumps([op.model_dump(mode="json") for op in data.operations])
+        )
+    cf = _chain_file(pid, p["slug"], cid)
+    operations = json.loads(cf.read_text()) if cf.exists() else []
+    chain["operations"] = operations
+    return chain
+
+
+@app.delete("/api/projects/{pid}/chains/{cid}")
+def delete_chain(pid: str, cid: str):
+    p = db_get_project(pid)
+    if not p:
+        raise HTTPException(404, "Project not found")
+    chain = db_get_chain(pid, cid)
+    if not chain:
+        raise HTTPException(404, "Chain not found")
+    ok = db_delete_chain(pid, cid)
+    cf = _chain_file(pid, p["slug"], cid)
+    if cf.exists():
+        cf.unlink()
+    return {"deleted": ok}

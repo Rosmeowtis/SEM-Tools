@@ -1,4 +1,4 @@
-import type { Project, ResourceMeta } from "./types";
+import type { Chain, Operation, Project, ResourceMeta } from "./types";
 
 const BASE = "/api";
 
@@ -59,4 +59,21 @@ export const api = {
 
   thumbUrl: (pid: string, sha1: string) =>
     `${BASE}/projects/${pid}/resources/${sha1}/thumb`,
+
+  listChains: (pid: string) => req<Chain[]>(`/projects/${pid}/chains`),
+  createChain: (pid: string, name: string) =>
+    req<Chain>(`/projects/${pid}/chains`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
+  getChain: (pid: string, cid: string) => req<Chain>(`/projects/${pid}/chains/${cid}`),
+  updateChain: (pid: string, cid: string, data: { name?: string; operations?: Operation[]; resource_ids?: string[] }) =>
+    req<Chain>(`/projects/${pid}/chains/${cid}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }),
+  deleteChain: (pid: string, cid: string) =>
+    req<{ deleted: boolean }>(`/projects/${pid}/chains/${cid}`, { method: "DELETE" }),
 };

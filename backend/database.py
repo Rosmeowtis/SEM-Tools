@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from studio.config import DB_PATH
 
@@ -28,6 +29,15 @@ def init_db():
             ext TEXT NOT NULL,
             size INTEGER NOT NULL,
             imported_at TEXT NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS chains (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            resource_ids_json TEXT DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
             FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
         );
         """
@@ -124,6 +134,60 @@ def add_resource(sha1: str, pid: str, filename: str, ext: str, size: int, ts: st
 def delete_resource(sha1: str) -> bool:
     conn = get_db()
     cur = conn.execute("DELETE FROM resources WHERE sha1 = ?", (sha1,))
+    conn.commit()
+    conn.close()
+    return cur.rowcount > 0
+
+
+def get_chain(pid: str, cid: str) -> dict | None:
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM chains WHERE id = ? AND project_id = ?", (cid, pid)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def list_chains(pid: str) -> list[dict]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM chains WHERE project_id = ? ORDER BY created_at DESC", (pid,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def create_chain(pid: str, cid: str, name: str, resource_ids: list[str], ts: str) -> dict:
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO chains (id, project_id, name, resource_ids_json, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+        (cid, pid, name, json.dumps(resource_ids), ts, ts),
+    )
+    conn.commit()
+    conn.close()
+    return {"id": cid, "project_id": pid, "name": name, "resource_ids": resource_ids, "created_at": ts, "updated_at": ts}
+
+
+def update_chain(cid: str, name: str | None, resource_ids_json: str | None, ts: str) -> dict | None:
+    conn = get_db()
+    existing = conn.execute("SELECT * FROM chains WHERE id = ?", (cid,)).fetchone()
+    if not existing:
+        conn.close()
+        return None
+    new_name = name if name is not None else existing["name"]
+    new_rids = resource_ids_json if resource_ids_json is not None else existing["resource_ids_json"]
+    conn.execute(
+        "UPDATE chains SET name=?, resource_ids_json=?, updated_at=? WHERE id=?",
+        (new_name, new_rids, ts, cid),
+    )
+    conn.commit()
+    conn.close()
+    return {**dict(existing), "name": new_name, "resource_ids": json.loads(new_rids), "updated_at": ts}
+
+
+def delete_chain(pid: str, cid: str) -> bool:
+    conn = get_db()
+    cur = conn.execute("DELETE FROM chains WHERE id = ? AND project_id = ?", (cid, pid))
     conn.commit()
     conn.close()
     return cur.rowcount > 0
