@@ -10,7 +10,7 @@ export function AddOpDropdown({ onAdd }: { onAdd: (kind: Operation["kind"]) => v
         + Add Operation
       </button>
       {open && (
-        <div className="absolute bottom-full mb-1 left-0 bg-white border border-gray-200 rounded shadow-lg">
+        <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded shadow-lg z-10">
           {OP_KINDS.map(({ kind, mode, label }) => (
             <button key={kind} className="block w-full text-left px-3 py-1 text-sm hover:bg-gray-100"
               onClick={() => { onAdd(kind); setOpen(false); }}>
