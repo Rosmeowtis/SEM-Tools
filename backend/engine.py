@@ -41,7 +41,7 @@ def render_preview(image_path: Path, operations: list[dict], cache_path: Path,
     del img
 
 
-def execute_chain(resource_paths: list[tuple[str, Path]], operations: list[dict],
+def execute_chain(resource_paths: list[tuple[str, str, Path]], operations: list[dict],
                   export_dir: Path, on_progress: Callable[[int], None] | None = None) -> BytesIO:
     map_ops = [op for op in operations if op.get("mode") != "reduce"]
     reduce_ops = [op for op in operations if op.get("mode") == "reduce"]
@@ -56,12 +56,13 @@ def execute_chain(resource_paths: list[tuple[str, Path]], operations: list[dict]
         reduce_states[i] = reduce_init(op)
 
     output_paths: list[Path] = []
-    for idx, (rid, rpath) in enumerate(resource_paths):
+    for idx, (rid, filename, rpath) in enumerate(resource_paths):
         img = load_image(rpath)
         for op in map_ops:
             img = apply_map_op(img, op)
 
-        out_path = export_dir / f"{rid}.{output_fmt}"
+        stem = Path(filename).stem
+        out_path = export_dir / f"{stem}.{output_fmt}"
         save_image(img, out_path, quality=quality)
         output_paths.append(out_path)
 

@@ -435,7 +435,7 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
         if r:
             orig = _project_dir(pid, p["slug"]) / "resources" / "original" / f"{rid}.{r['ext']}"
             if orig.exists():
-                resource_paths.append((rid, orig))
+                resource_paths.append((rid, r["filename"], orig))
 
     if not resource_paths:
         raise HTTPException(400, "No resources found")
