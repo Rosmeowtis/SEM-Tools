@@ -358,3 +358,4 @@ def execute_chain(resource_ids: list[str], operations: list[Operation]) -> dict:
 | Phase 4 | 实时预览（SSE）+ 预览缓存 |
 | Phase 5 | 导出（单文件 + 批量）+ Preset 系统 |
 | Phase 6 | 标签管理、搜索、CommandPalette |
+| Phase 7 | 绿色打包分发：embedded Python 3.13 + `uv sync` 修剪依赖 + Vite build 产物 + 启动脚本，输出单目录便携版 |
