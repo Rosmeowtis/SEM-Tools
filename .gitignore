@@ -31,3 +31,8 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# Studio
+_data/
+*.db
+__pycache__/
