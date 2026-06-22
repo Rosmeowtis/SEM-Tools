@@ -43,7 +43,7 @@ export default function App() {
   };
 
   const handleCreateChain = (pid: string, name: string, fromPreset?: string) => {
-    api.createChain(pid, name, fromPreset).then((c) => { navigate(`/projects/${pid}/chains/${c.id}`); });
+    return api.createChain(pid, name, fromPreset).then((c) => { navigate(`/projects/${pid}/chains/${c.id}`); });
   };
 
   return (

@@ -76,10 +76,10 @@ export function Sidebar({
     });
   };
 
-  const handleCreateChain = (pid: string) => {
+  const handleCreateChain = async (pid: string) => {
     const name = newChainName[pid]?.trim();
     if (!name) return;
-    onCreateChain(pid, name, newChainPreset[pid] || undefined);
+    await onCreateChain(pid, name, newChainPreset[pid] || undefined);
     setNewChainName(prev => ({ ...prev, [pid]: "" }));
     setNewChainPreset(prev => ({ ...prev, [pid]: "" }));
     fetchChains(pid);
