@@ -82,14 +82,14 @@ def reduce_porosity_init(params: dict) -> dict:
     return {"total_white": 0.0, "total_pixels": 0, "per_image": []}
 
 
-def reduce_porosity_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
+def reduce_porosity_accumulate(state: dict, img: np.ndarray, rid: str, filename: str = "") -> dict:
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
     white = np.sum(binary == 255)
     total = binary.size
     state["total_white"] += float(white)
     state["total_pixels"] += int(total)
-    state["per_image"].append({"rid": rid, "porosity": float(white / total)})
+    state["per_image"].append({"name": filename or rid, "porosity": float(white / total)})
     return state
 
 
@@ -104,7 +104,7 @@ def reduce_statistics_init(params: dict) -> dict:
     return {"values": []}
 
 
-def reduce_statistics_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
+def reduce_statistics_accumulate(state: dict, img: np.ndarray, rid: str, filename: str = "") -> dict:
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     state["values"].extend(gray.ravel().tolist())
     return state
@@ -128,7 +128,7 @@ def reduce_distribution_init(params: dict) -> dict:
     return {"particle_areas": [], "equiv_diameters": []}
 
 
-def reduce_distribution_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
+def reduce_distribution_accumulate(state: dict, img: np.ndarray, rid: str, filename: str = "") -> dict:
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
     num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
@@ -153,7 +153,7 @@ def reduce_porosity_format(state: dict) -> str:
         f"overall\t{state['overall'] * 100:.2f}%",
     ]
     for item in state["per_image"]:
-        lines.append(f"{item['rid']}\t{item['porosity'] * 100:.2f}%")
+        lines.append(f"{item['name']}\t{item['porosity'] * 100:.2f}%")
     return "\n".join(lines)
 
 
@@ -211,10 +211,10 @@ def reduce_init(op: dict) -> dict:
     return entry["init"](op["params"]) if entry else {}
 
 
-def reduce_accumulate(op: dict, state: dict, img: np.ndarray, rid: str) -> dict:
+def reduce_accumulate(op: dict, state: dict, img: np.ndarray, rid: str, filename: str = "") -> dict:
     t = op["params"].get("type", "porosity")
     entry = _REDUCE_TYPES.get(t)
-    return entry["accumulate"](state, img, rid) if entry else state
+    return entry["accumulate"](state, img, rid, filename) if entry else state
 
 
 def reduce_finalize(op: dict, state: dict) -> dict:

@@ -45,9 +45,9 @@ class ChainState:
             if op.get("mode") == "reduce":
                 self._acc[i] = reduce_init(op)
 
-    def accumulate(self, idx: int, op: dict, img: np.ndarray, rid: str):
+    def accumulate(self, idx: int, op: dict, img: np.ndarray, rid: str, filename: str = ""):
         if idx in self._acc:
-            self._acc[idx] = reduce_accumulate(op, self._acc[idx], img, rid)
+            self._acc[idx] = reduce_accumulate(op, self._acc[idx], img, rid, filename)
 
     def finalize(self) -> dict[str, dict]:
         results: dict[str, dict] = {}
@@ -78,7 +78,7 @@ def run_pipeline(
         img = load_image(rpath)
         for i, op in enumerate(operations):
             if op.get("mode") == "reduce":
-                state.accumulate(i, op, img, rid)
+                state.accumulate(i, op, img, rid, filename)
             else:
                 img = apply_map_op(img, op)
         per_resource(idx, rid, filename, img)
