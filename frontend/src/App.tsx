@@ -73,6 +73,7 @@ function Sidebar({
     onCreateChain(pid, name, newChainPreset[pid] || undefined);
     setNewChainName(prev => ({ ...prev, [pid]: "" }));
     setNewChainPreset(prev => ({ ...prev, [pid]: "" }));
+    fetchChains(pid);
   };
 
   const handleDeleteChain = (pid: string, cid: string) => {
@@ -188,6 +189,7 @@ function Sidebar({
                       setNewChainName((prev) => ({ ...prev, [p.id]: e.target.value }))
                     }
                   />
+                  <button type="submit" className="px-1.5 py-0.5 bg-blue-500 text-white rounded text-xs">+</button>
                 </form>
               </div>
             )}
