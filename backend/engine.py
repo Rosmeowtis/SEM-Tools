@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable
 from PIL import Image
 
-from studio.operations import apply_map_op
+from studio.operations import apply_map_op, reduce_init, reduce_accumulate, reduce_finalize
 
 
 def load_image(path: Path) -> np.ndarray:
@@ -23,57 +23,6 @@ def save_image(img: np.ndarray, path: Path, quality: int = 85):
         Image.fromarray(img).save(path, quality=quality)
     else:
         Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).save(path, quality=quality)
-
-
-def _reduce_init(op: dict) -> dict:
-    params = op["params"]
-    t = params.get("type", "porosity")
-    if t == "porosity":
-        return {"total_white": 0.0, "total_pixels": 0, "per_image": []}
-    elif t == "statistics":
-        return {"values": []}
-    elif t == "distribution":
-        return {"particle_areas": [], "equiv_diameters": []}
-    return {}
-
-
-def _reduce_accumulate(op: dict, state: dict, img: np.ndarray, rid: str) -> dict:
-    params = op["params"]
-    t = params.get("type", "porosity")
-    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    if t == "porosity":
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-        white = np.sum(binary == 255)
-        total = binary.size
-        state["total_white"] += float(white)
-        state["total_pixels"] += int(total)
-        state["per_image"].append({"rid": rid, "porosity": float(white / total)})
-    elif t == "statistics":
-        state["values"].extend(gray.ravel().tolist())
-    elif t == "distribution":
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
-        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
-        areas = stats[1:, cv2.CC_STAT_AREA].tolist()
-        state["particle_areas"].extend(areas)
-        state["equiv_diameters"].extend([2 * np.sqrt(a / np.pi) for a in areas])
-    return state
-
-
-def _reduce_finalize(op: dict, state: dict) -> dict:
-    t = op["params"].get("type", "porosity")
-    if t == "porosity":
-        overall = state["total_white"] / state["total_pixels"] if state["total_pixels"] else 0
-        return {"overall": overall, "per_image": state["per_image"]}
-    elif t == "statistics":
-        arr = np.array(state["values"]) if state["values"] else np.array([0])
-        return {"count": int(len(arr)), "mean": float(arr.mean()),
-                "std": float(arr.std()), "min": float(arr.min()), "max": float(arr.max()),
-                "p50": float(np.percentile(arr, 50)), "p95": float(np.percentile(arr, 95)),
-                "p99": float(np.percentile(arr, 99))}
-    elif t == "distribution":
-        return {"particle_areas": state["particle_areas"],
-                "equiv_diameters": state["equiv_diameters"]}
-    return {}
 
 
 def render_preview(image_path: Path, operations: list[dict], cache_path: Path,
@@ -104,7 +53,7 @@ def execute_chain(resource_paths: list[tuple[str, Path]], operations: list[dict]
 
     reduce_states = {}
     for i, op in enumerate(reduce_ops):
-        reduce_states[i] = _reduce_init(op)
+        reduce_states[i] = reduce_init(op)
 
     output_paths: list[Path] = []
     for idx, (rid, rpath) in enumerate(resource_paths):
@@ -117,7 +66,7 @@ def execute_chain(resource_paths: list[tuple[str, Path]], operations: list[dict]
         output_paths.append(out_path)
 
         for i, op in enumerate(reduce_ops):
-            reduce_states[i] = _reduce_accumulate(op, reduce_states[i], img, rid)
+            reduce_states[i] = reduce_accumulate(op, reduce_states[i], img, rid)
 
         del img
         if on_progress:
@@ -126,7 +75,7 @@ def execute_chain(resource_paths: list[tuple[str, Path]], operations: list[dict]
     results = {}
     for i, op in enumerate(reduce_ops):
         key = f"{op['kind']}-{i}"
-        results[key] = _reduce_finalize(op, reduce_states[i])
+        results[key] = reduce_finalize(op, reduce_states[i])
 
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -147,7 +96,7 @@ def execute_and_preview(resource_paths: list[tuple[str, str, Path]], operations:
 
     reduce_states = {}
     for i, op in enumerate(reduce_ops):
-        reduce_states[i] = _reduce_init(op)
+        reduce_states[i] = reduce_init(op)
 
     images = []
     for i, (rid, filename, rpath) in enumerate(resource_paths):
@@ -168,7 +117,7 @@ def execute_and_preview(resource_paths: list[tuple[str, str, Path]], operations:
         save_image(thumb, thumb_path)
 
         for j, op in enumerate(reduce_ops):
-            reduce_states[j] = _reduce_accumulate(op, reduce_states[j], img, rid)
+            reduce_states[j] = reduce_accumulate(op, reduce_states[j], img, rid)
 
         del img
         images.append({"filename": filename, "index": i})
@@ -176,6 +125,6 @@ def execute_and_preview(resource_paths: list[tuple[str, str, Path]], operations:
     results = {}
     for i, op in enumerate(reduce_ops):
         key = f"{op['kind']}-{i}"
-        results[key] = _reduce_finalize(op, reduce_states[i])
+        results[key] = reduce_finalize(op, reduce_states[i])
 
     return {"images": images, "analysis": results}

@@ -67,6 +67,93 @@ def op_auto_threshold(img: np.ndarray, params: dict) -> np.ndarray:
     return binary
 
 
+# --- Reduce (analyze) operations ---
+
+
+def reduce_porosity_init(params: dict) -> dict:
+    return {"total_white": 0.0, "total_pixels": 0, "per_image": []}
+
+
+def reduce_porosity_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+    white = np.sum(binary == 255)
+    total = binary.size
+    state["total_white"] += float(white)
+    state["total_pixels"] += int(total)
+    state["per_image"].append({"rid": rid, "porosity": float(white / total)})
+    return state
+
+
+def reduce_porosity_finalize(state: dict) -> dict:
+    overall = state["total_white"] / state["total_pixels"] if state["total_pixels"] else 0
+    return {"overall": overall, "per_image": state["per_image"]}
+
+
+def reduce_statistics_init(params: dict) -> dict:
+    return {"values": []}
+
+
+def reduce_statistics_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    state["values"].extend(gray.ravel().tolist())
+    return state
+
+
+def reduce_statistics_finalize(state: dict) -> dict:
+    arr = np.array(state["values"]) if state["values"] else np.array([0])
+    return {
+        "count": int(len(arr)), "mean": float(arr.mean()),
+        "std": float(arr.std()), "min": float(arr.min()), "max": float(arr.max()),
+        "p50": float(np.percentile(arr, 50)), "p95": float(np.percentile(arr, 95)),
+        "p99": float(np.percentile(arr, 99)),
+    }
+
+
+def reduce_distribution_init(params: dict) -> dict:
+    return {"particle_areas": [], "equiv_diameters": []}
+
+
+def reduce_distribution_accumulate(state: dict, img: np.ndarray, rid: str) -> dict:
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+    num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, connectivity=8)
+    areas = stats[1:, cv2.CC_STAT_AREA].tolist()
+    state["particle_areas"].extend(areas)
+    state["equiv_diameters"].extend([2 * np.sqrt(a / np.pi) for a in areas])
+    return state
+
+
+def reduce_distribution_finalize(state: dict) -> dict:
+    return {"particle_areas": state["particle_areas"],
+            "equiv_diameters": state["equiv_diameters"]}
+
+
+_REDUCE_TYPES: dict[str, dict] = {
+    "porosity": {"init": reduce_porosity_init, "accumulate": reduce_porosity_accumulate, "finalize": reduce_porosity_finalize},
+    "statistics": {"init": reduce_statistics_init, "accumulate": reduce_statistics_accumulate, "finalize": reduce_statistics_finalize},
+    "distribution": {"init": reduce_distribution_init, "accumulate": reduce_distribution_accumulate, "finalize": reduce_distribution_finalize},
+}
+
+
+def reduce_init(op: dict) -> dict:
+    t = op["params"].get("type", "porosity")
+    entry = _REDUCE_TYPES.get(t)
+    return entry["init"](op["params"]) if entry else {}
+
+
+def reduce_accumulate(op: dict, state: dict, img: np.ndarray, rid: str) -> dict:
+    t = op["params"].get("type", "porosity")
+    entry = _REDUCE_TYPES.get(t)
+    return entry["accumulate"](state, img, rid) if entry else state
+
+
+def reduce_finalize(op: dict, state: dict) -> dict:
+    t = op["params"].get("type", "porosity")
+    entry = _REDUCE_TYPES.get(t)
+    return entry["finalize"](state) if entry else {}
+
+
 _MAP_OPS: dict[str, callable] = {
     "crop": op_crop,
     "resize": op_resize,
