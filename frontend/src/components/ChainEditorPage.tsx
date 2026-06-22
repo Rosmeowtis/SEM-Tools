@@ -21,7 +21,7 @@ export function ChainEditorPage() {
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(300);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("off");
+  const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("overlay");
   const [overlayOpacity, setOverlayOpacity] = useState(50);
   const debounceRef = useRef<number | undefined>(undefined);
   const origRef = useRef<HTMLImageElement>(null);
@@ -187,7 +187,7 @@ export function ChainEditorPage() {
       )}
 
       {lightboxIdx !== null && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex flex-col items-center justify-center" onClick={() => { setLightboxIdx(null); setCompareMode("off"); }}>
+        <div className="fixed inset-0 z-50 bg-black/70 flex flex-col items-center justify-center" onClick={() => { setLightboxIdx(null); setCompareMode("overlay"); }}>
           <div className="flex-1 flex items-center justify-center min-h-0 min-w-0" onClick={e => e.stopPropagation()}>
             {compareMode === "off" && (
               <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)} className="max-w-[90vw] max-h-[90vh] object-contain" alt="Result" />
