@@ -40,3 +40,7 @@ __pycache__/
 # Build artifacts
 build/
 scripts/get-pip.py
+
+# packaging
+/SEM-Tools
+/SEM-Tools.zip
