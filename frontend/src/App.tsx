@@ -442,6 +442,7 @@ function ChainEditorPage() {
   const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> } | null>(null);
   const [resultsOpen, setResultsOpen] = useState(false);
   const [resultsHeight, setResultsHeight] = useState(300);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const debounceRef = useRef<number | undefined>(undefined);
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
@@ -603,7 +604,9 @@ function ChainEditorPage() {
               <div className="flex gap-2 overflow-x-auto">
                 {execResult.images.map(img => (
                   <div key={img.index} className="shrink-0">
-                    <img src={api.executeThumbUrl(pid!, cid!, img.index)} className="h-24 w-auto border rounded bg-white" alt={img.filename} />
+                    <img src={api.executeThumbUrl(pid!, cid!, img.index)}
+                      className="h-24 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
+                      alt={img.filename} onClick={() => setLightboxIdx(img.index)} />
                     <div className="text-xs text-gray-500 truncate w-20">{img.filename}</div>
                   </div>
                 ))}
@@ -611,6 +614,15 @@ function ChainEditorPage() {
             </div>
             </div>
           )}
+        </div>
+      )}
+
+      {lightboxIdx !== null && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center"
+          onClick={() => setLightboxIdx(null)}>
+          <img src={api.executeFullUrl(pid!, cid!, lightboxIdx)}
+            className="max-w-[90vw] max-h-[90vh] object-contain"
+            onClick={e => e.stopPropagation()} alt="Full" />
         </div>
       )}
     </div>

@@ -93,6 +93,9 @@ export const api = {
   executeThumbUrl: (pid: string, cid: string, idx: number) =>
     `${BASE}/projects/${pid}/chains/${cid}/execute-thumb/${idx}`,
 
+  executeFullUrl: (pid: string, cid: string, idx: number) =>
+    `${BASE}/projects/${pid}/chains/${cid}/execute-full/${idx}`,
+
   listPresets: (category?: string) =>
     req<Preset[]>(`/presets${category ? `?category=${category}` : ""}`),
 
