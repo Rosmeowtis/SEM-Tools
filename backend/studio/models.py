@@ -26,7 +26,6 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     title: str | None = None
     note: str | None = None
-    tags: str | None = None
 
 
 class Project(BaseModel):
@@ -34,7 +33,6 @@ class Project(BaseModel):
     slug: str
     title: str
     note: str
-    tags: str = ""
     created_at: str
     updated_at: str
 

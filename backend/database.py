@@ -19,7 +19,6 @@ def init_db():
             slug TEXT NOT NULL,
             title TEXT NOT NULL,
             note TEXT DEFAULT '',
-            tags TEXT DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -66,16 +65,15 @@ def get_project(pid: str) -> dict | None:
 def create_project(pid: str, slug: str, title: str, note: str, ts: str) -> dict:
     conn = get_db()
     conn.execute(
-        "INSERT INTO projects (id, slug, title, note, tags, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
-        (pid, slug, title, note, "", ts, ts),
+        "INSERT INTO projects (id, slug, title, note, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+        (pid, slug, title, note, ts, ts),
     )
     conn.commit()
     conn.close()
-    return {"id": pid, "slug": slug, "title": title, "note": note, "tags": "", "created_at": ts, "updated_at": ts}
+    return {"id": pid, "slug": slug, "title": title, "note": note, "created_at": ts, "updated_at": ts}
 
 
-def update_project(pid: str, title: str | None, note: str | None,
-                   tags: str | None, ts: str) -> dict | None:
+def update_project(pid: str, title: str | None, note: str | None, ts: str) -> dict | None:
     conn = get_db()
     existing = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
     if not existing:
@@ -83,19 +81,18 @@ def update_project(pid: str, title: str | None, note: str | None,
         return None
     new_title = title if title is not None else existing["title"]
     new_note = note if note is not None else existing["note"]
-    new_tags = tags if tags is not None else existing.get("tags", "")
     new_slug = existing["slug"]
     if title is not None:
         from studio.models import slugify
         new_slug = slugify(new_title)
     conn.execute(
-        "UPDATE projects SET title=?, note=?, slug=?, tags=?, updated_at=? WHERE id=?",
-        (new_title, new_note, new_slug, new_tags, ts, pid),
+        "UPDATE projects SET title=?, note=?, slug=?, updated_at=? WHERE id=?",
+        (new_title, new_note, new_slug, ts, pid),
     )
     conn.commit()
     conn.close()
     return {"id": pid, "slug": new_slug, "title": new_title, "note": new_note,
-            "tags": new_tags, "created_at": existing["created_at"], "updated_at": ts}
+            "created_at": existing["created_at"], "updated_at": ts}
 
 
 def delete_project(pid: str) -> bool:

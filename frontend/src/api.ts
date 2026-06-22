@@ -48,13 +48,6 @@ export const api = {
   deleteProject: (pid: string) =>
     req<{ deleted: boolean }>(`/projects/${pid}`, { method: "DELETE" }),
 
-  updateProject: (pid: string, data: { title?: string; note?: string; tags?: string }) =>
-    req<Project>(`/projects/${pid}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }),
-
   listResources: (pid: string) =>
     req<ResourceMeta[]>(`/projects/${pid}/resources`),
 

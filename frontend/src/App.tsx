@@ -26,7 +26,6 @@ function Sidebar({
   onCreateProject,
   onCreateChain,
   currentPid,
-  onProjectsChanged,
   onChainsChanged,
 }: {
   projects: Project[];
@@ -35,7 +34,6 @@ function Sidebar({
   onCreateProject: (title: string) => void;
   onCreateChain: (pid: string, name: string, fromPreset?: string) => void;
   currentPid?: string;
-  onProjectsChanged: () => void;
   onChainsChanged: (chains: Record<string, Chain[]>) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -44,12 +42,11 @@ function Sidebar({
   const [newChainName, setNewChainName] = useState<Record<string, string>>({});
   const [newChainPreset, setNewChainPreset] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
-  const [editingTags, setEditingTags] = useState<Record<string, string>>({});
 
   const filtered = projects.filter(p => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return p.title.toLowerCase().includes(q) || p.tags.toLowerCase().includes(q);
+    return p.title.toLowerCase().includes(q);
   });
 
   const fetchChains = useCallback((pid: string) => {
@@ -151,27 +148,6 @@ function Sidebar({
             </div>
             {expanded[p.id] && (
               <div className="pl-7 border-l border-gray-200 ml-3">
-                <div className="px-2 py-1">
-                  <input
-                    className="w-full px-1 py-0.5 border border-gray-200 rounded text-xs text-gray-500"
-                    placeholder="tags: sem, porosity, ..."
-                    value={editingTags[p.id] ?? p.tags}
-                    onChange={e => {
-                      setEditingTags(prev => ({ ...prev, [p.id]: e.target.value }));
-                    }}
-                    onBlur={e => {
-                      const raw = e.target.value;
-                      const normalized = raw.split(",").map(s => s.trim()).filter(Boolean).join(", ");
-                      api.updateProject(p.id, { tags: normalized }).then(() => {
-                        setEditingTags(prev => { const next = { ...prev }; delete next[p.id]; return next; });
-                        onProjectsChanged();
-                      }).catch(() => onProjectsChanged());
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                    }}
-                  />
-                </div>
                 {(chains[p.id] || []).map((c) => (
                   <Link
                     key={c.id}
@@ -800,7 +776,7 @@ function CommandPalette({ projects, presets, chains, onCreateProject, onClose }:
     { label: "Presets", type: "route" as const, path: "/tools/presets", keywords: "presets manage" },
     ...projects.map(p => ({
       label: `Project: ${p.title}`, type: "route" as const,
-      path: `/projects/${p.id}`, keywords: p.title + " " + p.tags,
+      path: `/projects/${p.id}`, keywords: p.title,
     })),
     ...Object.entries(chains).flatMap(([pid, cs]) =>
       cs.map(c => ({
@@ -922,7 +898,6 @@ export default function App() {
         onCreateProject={handleCreateProject}
         onCreateChain={handleCreateChain}
         currentPid={currentPid}
-        onProjectsChanged={fetchProjects}
         onChainsChanged={setGlobalChains}
       />
       <div className="flex-1 overflow-auto">
