@@ -20,72 +20,97 @@ import hashlib
 import json
 import shutil
 import urllib.parse
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import cv2
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-
+from database import (
+    add_resource,
+    count_resources_by_sha1,
+    init_db,
+)
+from database import (
+    create_chain as db_create_chain,
+)
+from database import (
+    create_project as db_create_project,
+)
+from database import (
+    delete_chain as db_delete_chain,
+)
+from database import (
+    delete_project as db_delete_project,
+)
+from database import (
+    delete_resource as db_delete_resource,
+)
+from database import (
+    get_chain as db_get_chain,
+)
+from database import (
+    get_project as db_get_project,
+)
+from database import (
+    get_resource as db_get_resource,
+)
+from database import (
+    list_chains as db_list_chains,
+)
+from database import (
+    list_projects as db_list_projects,
+)
+from database import (
+    list_resources as db_list_resources,
+)
+from database import (
+    update_chain as db_update_chain,
+)
+from database import (
+    update_project as db_update_project,
+)
 from engine import (
-    execute_chain,
     execute_and_preview,
+    execute_chain,
     load_image,
     render_preview,
     save_image,
 )
-
-from database import (
-    add_resource,
-    count_resources_by_sha1,
-    create_chain as db_create_chain,
-    create_project as db_create_project,
-    delete_chain as db_delete_chain,
-    delete_project as db_delete_project,
-    delete_resource as db_delete_resource,
-    get_chain as db_get_chain,
-    get_project as db_get_project,
-    get_resource as db_get_resource,
-    init_db,
-    list_chains as db_list_chains,
-    list_projects as db_list_projects,
-    list_resources as db_list_resources,
-    update_chain as db_update_chain,
-    update_project as db_update_project,
-)
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from studio.config import DATA_DIR, THUMB_CACHE_DIR
-
-PRESETS_DIR = DATA_DIR / "presets"
 from studio.models import (
     ChainCreate,
     ChainUpdate,
     PresetCreate,
     PresetUpdate,
-    Project,
     ProjectCreate,
     ProjectUpdate,
-    ResourceMeta,
     new_id,
     now,
     slugify,
 )
 
-app = FastAPI()
+PRESETS_DIR = DATA_DIR / "presets"
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """应用启动时创建数据目录并初始化数据库表。"""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    init_db()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.on_event("startup")
-def startup():
-    """应用启动时创建数据目录并初始化数据库表。"""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    init_db()
 
 
 def _project_dir(pid: str, slug: str) -> Path:
@@ -697,11 +722,14 @@ def delete_preset(name: str):
 
 _static_dir = Path(__file__).resolve().parent.parent / "static"
 if _static_dir.exists():
-    app.mount("/studio", StaticFiles(directory=str(_static_dir), html=True), name="static")
+    app.mount(
+        "/studio", StaticFiles(directory=str(_static_dir), html=True), name="static"
+    )
 
 
 # --- 入口点 ---
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8765, reload=False)
+
+    uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=False)
