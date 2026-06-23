@@ -12,11 +12,11 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+PROJ = "SEM-Tools_v0.1.0"
 REPO = Path(__file__).resolve().parent.parent
 BUILD = REPO / "SEM-Tools"
 PY_VER = "3.13.2"
 PY_URL = f"https://www.python.org/ftp/python/{PY_VER}/python-{PY_VER}-embed-amd64.zip"
-GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 PYTHON_DIR = BUILD / "python"
 
 
@@ -30,48 +30,40 @@ def clean():
         shutil.rmtree(BUILD)
     BUILD.mkdir(parents=True)
 
+CACHE_DIR = REPO / "_cache"
+
 
 def download_python():
     step(f"下载 Embedded Python {PY_VER}")
-    zip_path = BUILD / "python.zip"
-    urllib.request.urlretrieve(PY_URL, zip_path)
-    with zipfile.ZipFile(zip_path, "r") as zf:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cached_zip = CACHE_DIR / f"python-{PY_VER}-embed-amd64.zip"
+
+    if cached_zip.exists():
+        print(f"  缓存命中: {cached_zip}")
+    else:
+        print(f"  下载 {PY_URL}")
+        urllib.request.urlretrieve(PY_URL, cached_zip)
+
+    with zipfile.ZipFile(cached_zip, "r") as zf:
         zf.extractall(PYTHON_DIR)
-    zip_path.unlink()
     # 启用 site-packages：编辑 ._pth 文件，去掉 import site 的注释
     for pth in PYTHON_DIR.glob("python*._pth"):
         content = pth.read_text(encoding="utf-8")
-        # 确保 #import site 变为 import site
         content = content.replace("#import site", "import site")
         pth.write_text(content, encoding="utf-8")
     print(f"  → {PYTHON_DIR}")
 
 
-def install_pip():
-    step("安装 pip")
-    get_pip = BUILD / "get-pip.py"
-    urllib.request.urlretrieve(GET_PIP_URL, get_pip)
-    subprocess.run(
-        [str(PYTHON_DIR / "python.exe"), str(get_pip)],
-        check=True,
-        capture_output=True,
-    )
-    get_pip.unlink()
-
-
 def install_deps():
-    step("安装 Python 依赖")
+    step("安装 Python 依赖（通过 uv）")
     pyproject = REPO / "backend" / "pyproject.toml"
     with open(pyproject, encoding="utf-8") as f:
         import tomllib
 
         data = tomllib.loads(f.read())
     deps = data["project"]["dependencies"]
-    pip = PYTHON_DIR / "Scripts" / "pip.exe"
-    if not pip.exists():
-        pip = PYTHON_DIR / "Scripts" / "pip3.exe"
     subprocess.run(
-        [str(pip), "install"] + deps,
+        ["uv", "pip", "install", "--python", str(PYTHON_DIR / "python.exe")] + deps,
         check=True,
         capture_output=True,
     )
@@ -154,22 +146,31 @@ def test_run():
     print(f"  {result.stdout.strip()}")
 
 
+def create_zip():
+    step("打包 SEM-Tools.zip")
+    zip_path = REPO / f"{PROJ}.zip"
+    if zip_path.exists():
+        zip_path.unlink()
+    shutil.make_archive(str(REPO / PROJ), "zip", str(BUILD))
+    size_mb = zip_path.stat().st_size / 1024 / 1024
+    print(f"  → {zip_path} ({size_mb:.1f} MB)")
+
+
 def main():
     clean()
     download_python()
-    install_pip()
     install_deps()
     copy_backend()
     build_frontend()
     create_start_script()
     create_readme()
     test_run()
+    create_zip()
     print(f"\n✅ 构建完成！产物在 {BUILD}")
-    print("   启动: 双击 build/start.bat")
+    print("   启动: 双击 start.bat")
     print(
         f"   大小: {sum(f.stat().st_size for f in BUILD.rglob('*') if f.is_file()) / 1024 / 1024:.1f} MB"
     )
-
 
 if __name__ == "__main__":
     main()
