@@ -66,7 +66,7 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/projects/:pid" element={<ResourcesPage />} />
           <Route path="/projects/:pid/chains/:cid" element={<ChainEditorPage />} />
-          <Route path="/tools/presets" element={<PresetsPage />} />
+          <Route path="/tools/presets" element={<PresetsPage onPresetsChange={() => api.listPresets().then(setPresets)} />} />
         </Routes>
       </div>
       {paletteOpen && (

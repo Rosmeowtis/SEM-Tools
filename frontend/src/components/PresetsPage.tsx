@@ -13,7 +13,7 @@ import { SortableOpItem } from "./SortableOpItem";
 import { SchemaForm } from "./SchemaForm";
 import { AddOpDropdown } from "./AddOpDropdown";
 
-export function PresetsPage() {
+export function PresetsPage({ onPresetsChange }: { onPresetsChange?: () => void }) {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -29,15 +29,17 @@ export function PresetsPage() {
   const handleSave = () => {
     if (!editing) return;
     const category = editCategory.split(",").map(s => s.trim()).filter(Boolean);
-    if (presets.some(p => p.name === editing)) {
-      api.updatePreset(editing, { operations: editOps, category }).then(fetchPresets);
-    } else {
-      api.createPreset(editing, editOps, category).then(fetchPresets);
-    }
-    setEditing(null);
+    const save = presets.some(p => p.name === editing)
+      ? api.updatePreset(editing, { operations: editOps, category })
+      : api.createPreset(editing, editOps, category);
+    save
+      .then(() => { fetchPresets(); onPresetsChange?.(); setEditing(null); })
+      .catch((e: Error) => alert("Save failed: " + e.message));
   };
 
-  const handleDelete = (name: string) => { api.deletePreset(name).then(fetchPresets); };
+  const handleDelete = (name: string) => {
+    api.deletePreset(name).then(() => { fetchPresets(); onPresetsChange?.(); });
+  };
 
   const handleEdit = (preset: Preset) => {
     setEditing(preset.name);
