@@ -112,7 +112,3 @@ export interface Preset {
   operations: Operation[];
 }
 
-export type StudioEvent =
-  | { type: "preview.progress"; progress: number; gen: number }
-  | { type: "preview.complete"; thumb_sha1: string; gen: number }
-  | { type: "preview.error"; message: string; gen: number };

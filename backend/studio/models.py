@@ -36,37 +36,6 @@ class ProjectCreate(BaseModel):
     """创建项目请求。"""
 
     title: str
-    note: str = ""
-
-
-class ProjectUpdate(BaseModel):
-    """更新项目请求（字段可选，只更新非 None 字段）。"""
-
-    title: str | None = None
-    note: str | None = None
-
-
-class Project(BaseModel):
-    """项目响应模型。"""
-
-    id: str
-    slug: str
-    title: str
-    note: str
-    created_at: str
-    updated_at: str
-
-
-class ResourceMeta(BaseModel):
-    """资源元数据响应。"""
-
-    id: int
-    sha1: str
-    project_id: str
-    filename: str
-    ext: str
-    size: int
-    imported_at: str
 
 
 # --- Operation 参数模型 ---

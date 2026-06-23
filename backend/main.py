@@ -15,7 +15,6 @@
 ```
 """
 
-import asyncio
 import hashlib
 import json
 import shutil
@@ -65,14 +64,11 @@ from database import (
 from database import (
     update_chain as db_update_chain,
 )
-from database import (
-    update_project as db_update_project,
-)
+
 from engine import (
     execute_and_preview,
     execute_chain,
     load_image,
-    render_preview,
     save_image,
 )
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -86,7 +82,6 @@ from studio.models import (
     PresetCreate,
     PresetUpdate,
     ProjectCreate,
-    ProjectUpdate,
     new_id,
     now,
     slugify,
@@ -146,25 +141,7 @@ def create_project(data: ProjectCreate):
     (DATA_DIR / "projects" / f"{pid}-{slug}" / "resources" / "original").mkdir(
         parents=True, exist_ok=True
     )
-    return db_create_project(pid, slug, data.title, data.note, ts)
-
-
-@app.get("/api/projects/{pid}")
-def get_project(pid: str):
-    """获取单个项目详情。"""
-    p = db_get_project(pid)
-    if not p:
-        raise HTTPException(404, "Project not found")
-    return p
-
-
-@app.patch("/api/projects/{pid}")
-def patch_project(pid: str, data: ProjectUpdate):
-    """更新项目标题/备注。"""
-    p = db_update_project(pid, data.title, data.note, now())
-    if not p:
-        raise HTTPException(404, "Project not found")
-    return p
+    return db_create_project(pid, slug, data.title, ts)
 
 
 @app.delete("/api/projects/{pid}")
@@ -409,140 +386,6 @@ def delete_chain(pid: str, cid: str):
     return {"deleted": ok}
 
 
-# --- Preview route ---
-
-_preview_bus: dict[str, list[asyncio.Queue]] = {}
-_preview_gen: dict[str, int] = {}
-
-
-def _publish(chain_key: str, event: dict):
-    """向指定 chain_key 的所有 SSE 订阅者发布事件。"""
-    for q in list(_preview_bus.get(chain_key, [])):
-        try:
-            q.put_nowait(event)
-        except (asyncio.QueueFull, RuntimeError):
-            pass
-
-
-@app.post("/api/projects/{pid}/chains/{cid}/preview")
-async def trigger_preview(pid: str, cid: str, rid: str | None = None):
-    """触发单资源的实时预览渲染（SSE 异步推送进度 + 完成事件）。
-
-    Args:
-        rid: 可选，指定预览哪张资源；默认为链绑定的第一张。
-    """
-    p = db_get_project(pid)
-    if not p:
-        raise HTTPException(404, "Project not found")
-    chain = db_get_chain(pid, cid)
-    if not chain:
-        raise HTTPException(404, "Chain not found")
-
-    cf = _chain_file(pid, p["slug"], cid)
-    operations = json.loads(cf.read_text()) if cf.exists() else []
-
-    resource_ids = json.loads(chain["resource_ids_json"])
-    if not resource_ids:
-        raise HTTPException(400, "No resources bound to chain")
-
-    target_rid = rid if rid and rid in resource_ids else resource_ids[0]
-    resource = db_get_resource(target_rid, pid)
-    if not resource:
-        raise HTTPException(404, "Resource not found")
-
-    orig = (
-        _project_dir(pid, p["slug"])
-        / "resources"
-        / "original"
-        / f"{target_rid}.{resource['ext']}"
-    )
-    if not orig.exists():
-        raise HTTPException(
-            404, f"Original file not found: {target_rid}.{resource['ext']}"
-        )
-
-    chain_key = f"{cid}-{target_rid}"
-    _preview_gen[chain_key] = _preview_gen.get(chain_key, 0) + 1
-    gen = _preview_gen[chain_key]
-
-    cache_key = hashlib.sha1(
-        (json.dumps(operations, sort_keys=True) + target_rid).encode()
-    ).hexdigest()
-    cache_path = THUMB_CACHE_DIR / f"preview-{cache_key}.jpg"
-
-    if cache_path.exists():
-        _publish(
-            chain_key, {"type": "preview.complete", "thumb_sha1": cache_key, "gen": gen}
-        )
-        return {"cached": True}
-
-    asyncio.create_task(_run_preview(orig, operations, cache_path, chain_key, gen))
-    return {"accepted": True}
-
-
-async def _run_preview(
-    orig: Path, operations: list, cache_path: Path, chain_key: str, gen: int
-):
-    """在后台线程运行 render_preview，通过 SSE 发布进度与结果。"""
-    try:
-        loop = asyncio.get_running_loop()
-
-        def on_progress(pct: int):
-            loop.call_soon_threadsafe(
-                _publish,
-                chain_key,
-                {"type": "preview.progress", "progress": pct, "gen": gen},
-            )
-
-        await loop.run_in_executor(
-            None, render_preview, orig, operations, cache_path, on_progress
-        )
-
-        cache_key = cache_path.stem
-        loop.call_soon_threadsafe(
-            _publish,
-            chain_key,
-            {"type": "preview.complete", "thumb_sha1": cache_key, "gen": gen},
-        )
-    except Exception as e:
-        _publish(chain_key, {"type": "preview.error", "message": str(e), "gen": gen})
-
-
-@app.get("/api/events")
-async def event_stream(chain_id: str | None = None):
-    """SSE 事件流端点。client 通过 ?chain_id= 订阅指定链的预览事件。
-
-    Events:
-        preview.progress: {"progress": 0-100, "gen": int}
-        preview.complete: {"thumb_sha1": str, "gen": int}
-        preview.error: {"message": str, "gen": int}
-    """
-    queue: asyncio.Queue = asyncio.Queue()
-    if chain_id:
-        _preview_bus.setdefault(chain_id, []).append(queue)
-
-    async def gen():
-        try:
-            while True:
-                event = await queue.get()
-                yield f"event: {event['type']}\ndata: {json.dumps(event)}\n\n"
-        except asyncio.CancelledError:
-            pass
-        finally:
-            if chain_id:
-                buses = _preview_bus.get(chain_id, [])
-                if queue in buses:
-                    buses.remove(queue)
-                if not buses:
-                    _preview_bus.pop(chain_id, None)
-
-    return StreamingResponse(
-        gen(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
 # --- Export route ---
 
 
@@ -661,15 +504,13 @@ def _preset_path(name: str) -> Path:
 
 
 @app.get("/api/presets")
-def list_presets(category: str | None = None):
-    """列出所有预设，可选按分类过滤。"""
+def list_presets():
+    """列出所有预设。"""
     PRESETS_DIR.mkdir(parents=True, exist_ok=True)
     presets = []
     for f in PRESETS_DIR.glob("*.json"):
         data = json.loads(f.read_text())
         data["name"] = f.stem
-        if category and category not in data.get("category", []):
-            continue
         presets.append(data)
     return presets
 

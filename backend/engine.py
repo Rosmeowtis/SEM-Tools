@@ -53,25 +53,6 @@ def save_image(img: np.ndarray, path: Path, quality: int = 85):
         )
 
 
-class TextBuffer:
-    """文本累加器，用于收集 reduce 操作的人类可读分析报告。
-
-    reduce ops 通过 ChainState 在 finalize 时将格式化文本写入此对象，
-    导出时在 ZIP 中生成 analysis.txt。
-    """
-
-    def __init__(self):
-        self._lines: list[str] = []
-
-    def append(self, text: str):
-        """追加一段文本（末尾自动换行分隔）。"""
-        self._lines.append(text)
-
-    def content(self) -> str:
-        """获取全部已收集的文本内容。"""
-        return "\n".join(self._lines)
-
-
 class ChainState:
     """链执行副作用状态容器。
 
@@ -84,7 +65,7 @@ class ChainState:
     def __init__(self, operations: list[dict]):
         self._ops = operations
         self._acc: dict[int, dict] = {}
-        self._text = TextBuffer()
+        self._text_lines: list[str] = []
         for i, op in enumerate(operations):
             if op.get("mode") == "reduce":
                 self._acc[i] = reduce_init(op)
@@ -110,13 +91,13 @@ class ChainState:
                 op_type = op["params"].get("type", "?")
                 text = reduce_format(op, results[key])
                 if text:
-                    self._text.append(f"# {op['kind']}-{i} ({op_type})\n{text}\n")
+                    self._text_lines.append(f"# {op['kind']}-{i} ({op_type})\n{text}\n")
         return results
 
     @property
     def text(self) -> str:
         """获取人类可读的分析报告（TAB 分隔文本表格）。"""
-        return self._text.content()
+        return "\n".join(self._text_lines)
 
 
 def run_pipeline(
@@ -151,37 +132,6 @@ def run_pipeline(
         del img
         if on_progress:
             on_progress(int((idx + 1) / total * 100))
-
-
-def render_preview(
-    image_path: Path,
-    operations: list[dict],
-    cache_path: Path,
-    on_progress: Callable[[int], None] | None = None,
-):
-    """为单张资源渲染预览缩略图（200px 宽/高自适应）。
-
-    reduce 操作不改变图像，预览仅关注 map 变换结果。
-
-    Args:
-        image_path: 原图路径。
-        operations: 操作列表（按顺序执行，reduce 跳过）。
-        cache_path: 缩略图缓存路径。
-        on_progress: 进度回调。
-    """
-    img = load_image(image_path)
-    total = len(operations)
-    for i, op in enumerate(operations):
-        if op.get("mode") != "reduce":
-            img = apply_map_op(img, op)
-        if on_progress:
-            on_progress(int((i + 1) / total * 100) if total else 100)
-    h, w = img.shape[:2]
-    scale = 200 / max(h, w) if max(h, w) > 200 else 1.0
-    if scale < 1:
-        img = cv2.resize(img, (int(w * scale), int(h * scale)))
-    save_image(img, cache_path)
-    del img
 
 
 def execute_chain(

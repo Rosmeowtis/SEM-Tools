@@ -105,12 +105,12 @@ def get_project(pid: str) -> dict | None:
     return dict(row) if row else None
 
 
-def create_project(pid: str, slug: str, title: str, note: str, ts: str) -> dict:
+def create_project(pid: str, slug: str, title: str, ts: str) -> dict:
     """创建项目并返回新记录。"""
     conn = get_db()
     conn.execute(
         "INSERT INTO projects (id, slug, title, note, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-        (pid, slug, title, note, ts, ts),
+        (pid, slug, title, "", ts, ts),
     )
     conn.commit()
     conn.close()
@@ -118,43 +118,8 @@ def create_project(pid: str, slug: str, title: str, note: str, ts: str) -> dict:
         "id": pid,
         "slug": slug,
         "title": title,
-        "note": note,
+        "note": "",
         "created_at": ts,
-        "updated_at": ts,
-    }
-
-
-def update_project(
-    pid: str, title: str | None, note: str | None, ts: str
-) -> dict | None:
-    """更新项目标题/备注。返回更新后的记录，不存在返回 None。
-
-    若 title 不为 None 则重新生成 slug。
-    """
-    conn = get_db()
-    existing = conn.execute("SELECT * FROM projects WHERE id = ?", (pid,)).fetchone()
-    if not existing:
-        conn.close()
-        return None
-    new_title = title if title is not None else existing["title"]
-    new_note = note if note is not None else existing["note"]
-    new_slug = existing["slug"]
-    if title is not None:
-        from studio.models import slugify
-
-        new_slug = slugify(new_title)
-    conn.execute(
-        "UPDATE projects SET title=?, note=?, slug=?, updated_at=? WHERE id=?",
-        (new_title, new_note, new_slug, ts, pid),
-    )
-    conn.commit()
-    conn.close()
-    return {
-        "id": pid,
-        "slug": new_slug,
-        "title": new_title,
-        "note": new_note,
-        "created_at": existing["created_at"],
         "updated_at": ts,
     }
 

@@ -92,14 +92,6 @@ export const api = {
   deleteChain: (pid: string, cid: string) =>
     req<{ deleted: boolean }>(`/projects/${pid}/chains/${cid}`, { method: "DELETE" }),
 
-  /** SSE 预览触发 URL。 */
-  previewUrl: (pid: string, cid: string, rid?: string) =>
-    `${BASE}/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`,
-
-  /** 触发 SSE 实时预览。 */
-  requestPreview: (pid: string, cid: string, rid?: string) =>
-    req<{ accepted?: boolean; cached?: boolean }>(`/projects/${pid}/chains/${cid}/preview${rid ? `?rid=${rid}` : ""}`, { method: "POST" }),
-
   /** ZIP 导出下载 URL。 */
   exportUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/export${rid ? `?rid=${rid}` : ""}`,
@@ -117,8 +109,8 @@ export const api = {
   executeFullUrl: (pid: string, cid: string, idx: number) =>
     `${BASE}/projects/${pid}/chains/${cid}/execute-full/${idx}`,
 
-  listPresets: (category?: string) =>
-    req<Preset[]>(`/presets${category ? `?category=${category}` : ""}`),
+  listPresets: () =>
+    req<Preset[]>("/presets"),
 
   createPreset: (name: string, operations: Operation[], category: string[] = []) =>
     req<Preset>("/presets", {
