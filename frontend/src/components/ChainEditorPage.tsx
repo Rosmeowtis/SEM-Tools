@@ -115,7 +115,7 @@ export function ChainEditorPage() {
               {execResult.analysis && Object.keys(execResult.analysis).length > 0 && (
                 <div className="mb-4">
                   <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
-                  <pre className="text-xs text-gray-700 whitespace-pre-wrap">{JSON.stringify(execResult.analysis, null, 2)}</pre>
+                   <pre className="text-xs text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">{JSON.stringify(execResult.analysis, null, 2)}</pre>
                 </div>
               )}
               <div className="flex flex-wrap gap-3">
