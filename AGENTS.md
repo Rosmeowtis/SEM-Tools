@@ -1,3 +1,79 @@
+# SEM-Tools — Agent Guidance
+
+Chain-based image editing web app (React 19 + FastAPI + SQLite + OpenCV).
+
+## Quick start
+
+```bash
+# terminal 1: backend (port 8000, proxied by Vite)
+cd backend && uv run uvicorn main:app --reload
+
+# terminal 2: frontend (port 5173)
+cd frontend && bun run dev
+```
+
+Open `http://localhost:5173/studio/`.
+
+## Commands
+
+| Action | Command |
+|--------|---------|
+| Frontend dev | `cd frontend && bun run dev` |
+| Frontend build | `cd frontend && bun run build` (runs `tsc -b` then `vite build`) |
+| Frontend lint | `cd frontend && bun run lint` |
+| Backend dev | `cd backend && uv run uvicorn main:app --reload` |
+| Backend (port 8765) | `cd backend && uv run python main.py` |
+| Portable build | `uv run python scripts/build_portable.py` |
+
+No tests or CI in this repo. No separate typecheck command (it's part of `build`).
+
+## Package managers
+
+- **Frontend**: `bun` (see `frontend/package.json`)
+- **Backend**: `uv` (see `backend/pyproject.toml`, `backend/uv.lock`)
+- Python version pinned in `backend/.python-version` (3.13)
+
+## Architecture
+
+- **Frontend** (`frontend/src/`): React SPA with react-router-dom (basename `/studio`). Vite proxies `/api` → `localhost:8000`. Pages live in `components/` (no separate pages dir).
+- **Backend** (`backend/`): FastAPI app in `main.py`, SQLite via stdlib `sqlite3` in `database.py`, image pipeline in `engine.py`. Operations dispatch from `studio/operations.py`.
+- **Data** at `_data/` (gitignored): SQLite DB, uploaded files, thumbnails.
+- **No services layer** — functions live in router files.
+- **No ORM** — raw SQL via `sqlite3.Row` short-connection pattern.
+
+## Key design decisions
+
+- **Linear Chain, not DAG** — operations are an ordered list in JSON files (not DB). Chain JSON = full history; rollback = edit JSON.
+- **Resources stored by SHA1** — read-only dedup. Delete only removes disk file when no other project references the SHA1.
+- **Map/Reduce execution** — Map ops transform images streamingly (O(1) image in memory). Reduce ops accumulate cross-image state, finalize at end.
+- **Pillow for I/O, OpenCV for processing** — Pillow handles non-ASCII paths that OpenCV chokes on.
+- **Slugify via stdlib** `re`, not `python-slugify`.
+
+## Backend API routes
+
+All at `/api/`:
+- `/projects` — CRUD
+- `/projects/:pid/resources` — upload/browse/delete (SHA1 dedup, auto thumbnail)
+- `/projects/:pid/chains` — CRUD (operations as JSON file)
+- `/projects/:pid/chains/:cid` — GET/PATCH/DELETE, `PATCH` clears preview cache
+- `/projects/:pid/chains/:cid/execute` — POST, full chain execution, returns image index + analysis
+- `/projects/:pid/chains/:cid/execute-thumb/:idx` — GET thumbnail of result
+- `/projects/:pid/chains/:cid/execute-full/:idx` — GET full-size result image
+- `/projects/:pid/chains/:cid/export` — POST, ZIP download
+- `/presets` — CRUD (JSON files on disk)
+
+No SSE preview endpoint — the frontend uses `execute` + thumb/full image URLs instead.
+
+## Existing skill framework
+
+`.claude/skills/` has 20 skills (Chinese). Key rules from `AGENT.md`:
+1. Check for matching skill before starting work
+2. Brainstorm before coding (for features)
+3. TDD before implementation
+4. Verify before claiming completion
+
+Load skills via the `Skill` tool by name. Do not read `SKILL.md` directly.
+
 <!-- superpowers-zh:begin (do not edit between these markers) -->
 # Superpowers-ZH 中文增强版
 

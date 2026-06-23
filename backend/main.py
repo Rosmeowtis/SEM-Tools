@@ -4,13 +4,11 @@
 
 ```
 /api/projects                    → Project CRUD
-/api/projects/:pid/resources     → Resource 上传/浏览/删除
+/api/projects/:pid/resources     → Resource 上传/浏览/删除 (SHA1 去重)
 /api/projects/:pid/chains        → Chain CRUD (operations 存 JSON 文件)
 /api/projects/:pid/chains/:cid/
-  preview     → SSE 实时预览 (单资源渲染)
   execute     → 全量执行 (所有资源)
   export      → ZIP 下载
-/api/events                      → SSE 事件流
 /api/presets                     → Preset CRUD
 ```
 """

@@ -47,7 +47,7 @@ _data/               # 运行时数据（SQLite + 上传文件 + 缩略图缓存
 - [x] Phase 1 — 项目 CRUD + 资源上传/浏览 + 基础布局 + 缩略图系统
 - [x] Phase 2 — Chain 定义 CRUD + 三栏链编辑器 + 拖拽排序
 - [x] Phase 3 — Operation 参数表单 + 服务端管道渲染
-- [x] Phase 4 — 实时预览（SSE）+ 预览缓存
+- [x] Phase 4 — 链执行 + 结果缩略图/全尺寸预览（Execute 按钮模式，非 SSE）
 - [x] Phase 5 — 导出（单文件 + 批量）+ Preset 系统
 - [-] Phase 6 — 标签管理、搜索、CommandPalette（搜索/CommandPalette 已实现，标签管理已放弃）
 - [ ] Phase 7 — 绿色打包分发（embedded Python + 单目录便携版）
