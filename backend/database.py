@@ -17,6 +17,20 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+CREATE_RESOURCES_SQL = """
+CREATE TABLE IF NOT EXISTS resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sha1 TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    ext TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    imported_at TEXT NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+"""
+
+
 def init_db():
     """初始化数据库表结构。幂等操作（CREATE TABLE IF NOT EXISTS）。
 
@@ -35,15 +49,28 @@ def init_db():
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS resources (
-            sha1 TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            ext TEXT NOT NULL,
-            size INTEGER NOT NULL,
-            imported_at TEXT NOT NULL,
-            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
-        );
+        """
+    )
+    # resources 表先不创建 — 需要检测旧 schema 做迁移
+    cur = conn.execute("PRAGMA table_info(resources)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "id" not in cols:
+        # 旧 schema：sha1 为主键 → 迁移到新 schema
+        if cols:  # 表存在但无 id 列
+            conn.executescript("ALTER TABLE resources RENAME TO _resources_old")
+        conn.executescript(CREATE_RESOURCES_SQL)
+        if cols:
+            conn.executescript(
+                """
+                INSERT INTO resources (sha1, project_id, filename, ext, size, imported_at)
+                    SELECT sha1, project_id, filename, ext, size, imported_at FROM _resources_old;
+                DROP TABLE _resources_old;
+                """
+            )
+    else:
+        conn.executescript(CREATE_RESOURCES_SQL)
+    conn.executescript(
+        """
         CREATE TABLE IF NOT EXISTS chains (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -155,10 +182,13 @@ def list_resources(pid: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def get_resource(sha1: str) -> dict | None:
-    """按 SHA1 查询单个资源。"""
+def get_resource(sha1: str, pid: str) -> dict | None:
+    """按 SHA1 + 项目 ID 查询单个资源（返回最新的）。"""
     conn = get_db()
-    row = conn.execute("SELECT * FROM resources WHERE sha1 = ?", (sha1,)).fetchone()
+    row = conn.execute(
+        "SELECT * FROM resources WHERE sha1 = ? AND project_id = ? ORDER BY id DESC LIMIT 1",
+        (sha1, pid),
+    ).fetchone()
     conn.close()
     return dict(row) if row else None
 
@@ -166,15 +196,17 @@ def get_resource(sha1: str) -> dict | None:
 def add_resource(
     sha1: str, pid: str, filename: str, ext: str, size: int, ts: str
 ) -> dict:
-    """记录新资源到数据库。"""
+    """记录新资源到数据库，返回含自增 id 的记录。"""
     conn = get_db()
-    conn.execute(
+    cur = conn.execute(
         "INSERT INTO resources (sha1, project_id, filename, ext, size, imported_at) VALUES (?,?,?,?,?,?)",
         (sha1, pid, filename, ext, size, ts),
     )
+    rid = cur.lastrowid
     conn.commit()
     conn.close()
     return {
+        "id": rid,
         "sha1": sha1,
         "project_id": pid,
         "filename": filename,
@@ -184,13 +216,25 @@ def add_resource(
     }
 
 
-def delete_resource(sha1: str) -> bool:
-    """删除资源记录。返回是否实际删除。"""
+def delete_resource(sha1: str, pid: str) -> bool:
+    """删除项目下的资源记录。返回是否实际删除。"""
     conn = get_db()
-    cur = conn.execute("DELETE FROM resources WHERE sha1 = ?", (sha1,))
+    cur = conn.execute(
+        "DELETE FROM resources WHERE sha1 = ? AND project_id = ?", (sha1, pid)
+    )
     conn.commit()
     conn.close()
     return cur.rowcount > 0
+
+
+def count_resources_by_sha1(sha1: str) -> int:
+    """查询跨项目有多少条记录引用该 SHA1（用于判断是否可删磁盘文件）。"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM resources WHERE sha1 = ?", (sha1,)
+    ).fetchone()
+    conn.close()
+    return row["cnt"]
 
 
 # --- Chain CRUD ---

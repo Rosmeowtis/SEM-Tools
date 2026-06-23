@@ -9,6 +9,7 @@ export interface Project {
 }
 
 export interface ResourceMeta {
+  id: number;
   sha1: string;
   project_id: string;
   filename: string;

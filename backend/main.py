@@ -37,6 +37,7 @@ from engine import (
 
 from database import (
     add_resource,
+    count_resources_by_sha1,
     create_chain as db_create_chain,
     create_project as db_create_project,
     delete_chain as db_delete_chain,
@@ -177,6 +178,10 @@ async def upload_resource(pid: str, file: UploadFile = File(...)):
     ext = Path(file.filename).suffix.lstrip(".") if file.filename else "png"
     ts = now()
 
+    existing = db_get_resource(sha1, pid)
+    if existing:
+        return existing
+
     orig_dir = _project_dir(pid, project["slug"]) / "resources" / "original"
     orig_dir.mkdir(parents=True, exist_ok=True)
     dest = orig_dir / f"{sha1}.{ext}"
@@ -190,8 +195,8 @@ async def upload_resource(pid: str, file: UploadFile = File(...)):
 @app.get("/api/projects/{pid}/resources/{sha1}")
 def get_resource(pid: str, sha1: str):
     """获取单个资源元数据。"""
-    r = db_get_resource(sha1)
-    if not r or r["project_id"] != pid:
+    r = db_get_resource(sha1, pid)
+    if not r:
         raise HTTPException(404, "Resource not found")
     return r
 
@@ -199,8 +204,8 @@ def get_resource(pid: str, sha1: str):
 @app.get("/api/projects/{pid}/resources/{sha1}/thumb")
 def get_thumbnail(pid: str, sha1: str):
     """获取资源缩略图（200px JPEG）。"""
-    r = db_get_resource(sha1)
-    if not r or r["project_id"] != pid:
+    r = db_get_resource(sha1, pid)
+    if not r:
         raise HTTPException(404, "Resource not found")
     thumb = THUMB_CACHE_DIR / f"{sha1}.jpg"
     if not thumb.exists():
@@ -211,8 +216,8 @@ def get_thumbnail(pid: str, sha1: str):
 @app.get("/api/projects/{pid}/resources/{sha1}/full")
 def get_full_resource(pid: str, sha1: str):
     """获取资源原尺寸图。"""
-    r = db_get_resource(sha1)
-    if not r or r["project_id"] != pid:
+    r = db_get_resource(sha1, pid)
+    if not r:
         raise HTTPException(404, "Resource not found")
     project = db_get_project(pid)
     if not project:
@@ -244,24 +249,25 @@ def delete_resource(pid: str, sha1: str):
     project = db_get_project(pid)
     if not project:
         raise HTTPException(404, "Project not found")
-    r = db_get_resource(sha1)
-    if not r or r["project_id"] != pid:
+    r = db_get_resource(sha1, pid)
+    if not r:
         raise HTTPException(404, "Resource not found")
 
-    db_delete_resource(sha1)
+    db_delete_resource(sha1, pid)
 
-    orig = (
-        _project_dir(pid, project["slug"])
-        / "resources"
-        / "original"
-        / f"{sha1}.{r['ext']}"
-    )
-    if orig.exists():
-        orig.unlink()
-
-    thumb = THUMB_CACHE_DIR / f"{sha1}.jpg"
-    if thumb.exists():
-        thumb.unlink()
+    # 仅当无其他项目引用该 SHA1 时才删除磁盘文件
+    if count_resources_by_sha1(sha1) == 0:
+        orig = (
+            _project_dir(pid, project["slug"])
+            / "resources"
+            / "original"
+            / f"{sha1}.{r['ext']}"
+        )
+        if orig.exists():
+            orig.unlink()
+        thumb = THUMB_CACHE_DIR / f"{sha1}.jpg"
+        if thumb.exists():
+            thumb.unlink()
 
     return {"deleted": True}
 
@@ -414,7 +420,7 @@ async def trigger_preview(pid: str, cid: str, rid: str | None = None):
         raise HTTPException(400, "No resources bound to chain")
 
     target_rid = rid if rid and rid in resource_ids else resource_ids[0]
-    resource = db_get_resource(target_rid)
+    resource = db_get_resource(target_rid, pid)
     if not resource:
         raise HTTPException(404, "Resource not found")
 
@@ -536,7 +542,7 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
 
     resource_paths = []
     for rid in targets:
-        r = db_get_resource(rid)
+        r = db_get_resource(rid, pid)
         if r:
             orig = (
                 _project_dir(pid, p["slug"])
@@ -586,7 +592,7 @@ def exec_chain(pid: str, cid: str):
 
     resource_paths = []
     for rid in resource_ids:
-        r = db_get_resource(rid)
+        r = db_get_resource(rid, pid)
         if r:
             orig = (
                 _project_dir(pid, p["slug"])

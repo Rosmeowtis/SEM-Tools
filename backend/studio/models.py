@@ -60,6 +60,7 @@ class Project(BaseModel):
 class ResourceMeta(BaseModel):
     """资源元数据响应。"""
 
+    id: int
     sha1: str
     project_id: str
     filename: str

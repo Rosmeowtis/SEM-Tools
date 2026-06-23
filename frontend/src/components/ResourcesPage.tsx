@@ -142,7 +142,7 @@ export function ResourcesPage() {
       ) : (
         <div className="grid grid-cols-4 gap-3">
           {resources.map((r) => (
-            <div key={r.sha1} className="border border-gray-200 rounded overflow-hidden group">
+            <div key={r.id} className="border border-gray-200 rounded overflow-hidden group">
               <img
                 src={api.thumbUrl(pid, r.sha1)}
                 alt={r.filename}
