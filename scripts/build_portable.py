@@ -98,7 +98,7 @@ def create_start_script():
 cd /d "%~dp0"
 echo Starting SEM-Tools...
 start "" http://localhost:8765/studio/
-python\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8765 --app-dir backend
+python\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8765 --app-dir backend
 pause
 """
     (BUILD / "start.bat").write_text(content, encoding="utf-8")
