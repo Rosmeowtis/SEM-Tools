@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import json
 import shutil
+import urllib.parse
 from pathlib import Path
 
 import cv2
@@ -560,10 +561,11 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
     buf = execute_chain(resource_paths, operations, export_dir)
 
     name = chain.get("name", "export")
+    safe_name = urllib.parse.quote(f"{name}.zip")
     return StreamingResponse(
         buf,
         media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{name}.zip"'},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
     )
 
 
