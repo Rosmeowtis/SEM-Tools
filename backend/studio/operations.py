@@ -110,6 +110,31 @@ def op_morphology_ellipse(img: np.ndarray, params: dict) -> np.ndarray:
     return cv2.morphologyEx(img, t, kernel, iterations=it)
 
 
+def op_watershed(img: np.ndarray, params: dict) -> np.ndarray:
+    """分水岭算法分离重叠颗粒。
+
+    Args:
+        img: 输入图像（BGR 或灰度）。
+        params: {seed_thresh, bg_iterations, bg_ksize}。
+
+    Returns:
+        归一化到 0-255 的分离标签灰度图。
+    """
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    dist = cv2.distanceTransform(gray, cv2.DIST_L2, 5)
+    seed_t = params.get("seed_thresh", 0.5) * dist.max()
+    _, sure_fg = cv2.threshold(dist, seed_t, 255, cv2.THRESH_BINARY)
+    _, markers = cv2.connectedComponents(sure_fg.astype(np.uint8))
+    markers = markers + 1
+    ks = params.get("bg_ksize", 3)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ks, ks))
+    bg = cv2.dilate(gray, kernel, iterations=params.get("bg_iterations", 3))
+    markers[bg == 0] = 0
+    result = cv2.watershed(cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), markers)
+    result[result == -1] = 0
+    return cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)  # ty:ignore[no-matching-overload]
+
+
 def op_distance_transform(img: np.ndarray, params: dict) -> np.ndarray:
     """距离变换：每个前景像素到最近背景像素的距离。
 
@@ -496,6 +521,7 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "auto_threshold": op_auto_threshold,
     "tophat": op_tophat,
     "distance_transform": op_distance_transform,
+    "watershed": op_watershed,
 }
 
 

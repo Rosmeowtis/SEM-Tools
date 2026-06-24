@@ -28,11 +28,12 @@ export type OperationParams =
   | { offset: number; algorithm: "left_peak" | "right_peak" | "otsu" }
   | { type: "open" | "close"; ksize: number; iterations: number }
   | { type: "png" | "jpg" | "webp"; quality: number }
-  | { distance_type: "L1" | "L2" | "C"; mask_size: number };
+  | { distance_type: "L1" | "L2" | "C"; mask_size: number }
+  | { seed_thresh: number; bg_iterations: number; bg_ksize: number };
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform";
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -100,6 +101,13 @@ export const OP_KINDS = [
   { kind: "tophat" as const,   mode: "map" as const,    params: { ksize:81 }, label: "Tophat",
     help: "顶帽变换消除不均匀光照：大核开运算提取背景，原图减背景保留细节",
     fields: [{ key:"ksize", label:"Kernel Size", type:"number", default:81, help:"结构元素直径，越大背景估计越平滑" }] as FieldDef[] },
+  { kind: "watershed" as const, mode: "map" as const, params: { seed_thresh:0.5, bg_iterations:3, bg_ksize:3 }, label: "Watershed",
+    help: "分水岭分离重叠颗粒：距离变换+种子标记+分水岭",
+    fields: [
+      { key:"seed_thresh", label:"Seed Thr.", type:"number", default:0.5, help:"种子检测阈值（距离×max 的比例）" },
+      { key:"bg_iterations", label:"BG Iters", type:"number", default:3, help:"背景膨胀迭代次数" },
+      { key:"bg_ksize", label:"BG Kernel", type:"number", default:3, help:"背景膨胀核直径" },
+    ] as FieldDef[] },
   { kind: "distance_transform" as const, mode: "map" as const, params: { distance_type:"L2" as const, mask_size:3 }, label: "Distance",
     help: "距离变换：每个前景像素到最近背景像素的距离",
     fields: [

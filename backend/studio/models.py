@@ -99,6 +99,12 @@ class DistanceTransformParams(BaseModel):
     mask_size: int = 3
 
 
+class WatershedParams(BaseModel):
+    seed_thresh: float = 0.5
+    bg_iterations: int = 3
+    bg_ksize: int = 3
+
+
 # --- Discriminated union of operations ---
 
 
@@ -156,6 +162,12 @@ class DistanceTransformOp(BaseModel):
     params: DistanceTransformParams = Field(default_factory=DistanceTransformParams)
 
 
+class WatershedOp(BaseModel):
+    kind: Literal["watershed"] = "watershed"
+    mode: Literal["map"] = "map"
+    params: WatershedParams = Field(default_factory=WatershedParams)
+
+
 class MorphologyOp(BaseModel):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
     mode: Literal["map"] = "map"
@@ -187,6 +199,7 @@ Operation = Annotated[
         FormatOp,
         TophatOp,
         DistanceTransformOp,
+        WatershedOp,
         AnalyzeOp,
     ],
     Field(discriminator="kind"),
