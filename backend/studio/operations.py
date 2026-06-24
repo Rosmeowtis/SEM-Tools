@@ -110,6 +110,33 @@ def op_morphology_ellipse(img: np.ndarray, params: dict) -> np.ndarray:
     return cv2.morphologyEx(img, t, kernel, iterations=it)
 
 
+def op_centroid_markers(img: np.ndarray, params: dict) -> np.ndarray:
+    """计算各颗粒质心并用白色十字标注在纯黑背景上。
+
+    Args:
+        img: 输入图像（灰度标签图）。
+        params: {cross_size, cross_thickness}。
+
+    Returns:
+        纯黑背景上白色十字的标注图。
+    """
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    labels = gray.astype(np.int32)
+    cross = params.get("cross_size", 5)
+    thick = params.get("cross_thickness", 1)
+    out = np.zeros_like(gray)
+    for lbl in np.unique(labels):
+        if lbl <= 0:
+            continue
+        m = cv2.moments((labels == lbl).astype(np.uint8))
+        if m["m00"] == 0:
+            continue
+        cx, cy = int(m["m10"] / m["m00"]), int(m["m01"] / m["m00"])
+        cv2.line(out, (cx - cross, cy), (cx + cross, cy), 255, thick)
+        cv2.line(out, (cx, cy - cross), (cx, cy + cross), 255, thick)
+    return out
+
+
 def op_watershed(img: np.ndarray, params: dict) -> np.ndarray:
     """分水岭算法分离重叠颗粒。
 
@@ -522,6 +549,7 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "tophat": op_tophat,
     "distance_transform": op_distance_transform,
     "watershed": op_watershed,
+    "centroid_markers": op_centroid_markers,
 }
 
 

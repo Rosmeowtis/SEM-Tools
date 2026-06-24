@@ -105,6 +105,11 @@ class WatershedParams(BaseModel):
     bg_ksize: int = 3
 
 
+class CentroidMarkersParams(BaseModel):
+    cross_size: int = 5
+    cross_thickness: int = 1
+
+
 # --- Discriminated union of operations ---
 
 
@@ -168,6 +173,12 @@ class WatershedOp(BaseModel):
     params: WatershedParams = Field(default_factory=WatershedParams)
 
 
+class CentroidMarkersOp(BaseModel):
+    kind: Literal["centroid_markers"] = "centroid_markers"
+    mode: Literal["map"] = "map"
+    params: CentroidMarkersParams = Field(default_factory=CentroidMarkersParams)
+
+
 class MorphologyOp(BaseModel):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
     mode: Literal["map"] = "map"
@@ -200,6 +211,7 @@ Operation = Annotated[
         TophatOp,
         DistanceTransformOp,
         WatershedOp,
+        CentroidMarkersOp,
         AnalyzeOp,
     ],
     Field(discriminator="kind"),

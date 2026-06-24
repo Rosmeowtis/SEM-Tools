@@ -29,11 +29,12 @@ export type OperationParams =
   | { type: "open" | "close"; ksize: number; iterations: number }
   | { type: "png" | "jpg" | "webp"; quality: number }
   | { distance_type: "L1" | "L2" | "C"; mask_size: number }
-  | { seed_thresh: number; bg_iterations: number; bg_ksize: number };
+  | { seed_thresh: number; bg_iterations: number; bg_ksize: number }
+  | { cross_size: number; cross_thickness: number };
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed";
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -101,6 +102,12 @@ export const OP_KINDS = [
   { kind: "tophat" as const,   mode: "map" as const,    params: { ksize:81 }, label: "Tophat",
     help: "顶帽变换消除不均匀光照：大核开运算提取背景，原图减背景保留细节",
     fields: [{ key:"ksize", label:"Kernel Size", type:"number", default:81, help:"结构元素直径，越大背景估计越平滑" }] as FieldDef[] },
+  { kind: "centroid_markers" as const, mode: "map" as const, params: { cross_size:5, cross_thickness:1 }, label: "Centroids",
+    help: "计算各颗粒质心并用白色十字标注在纯黑背景图上",
+    fields: [
+      { key:"cross_size", label:"Cross Size", type:"number", default:5, help:"十字半臂长度（像素）" },
+      { key:"cross_thickness", label:"Thickness", type:"number", default:1, help:"十字线条粗细" },
+    ] as FieldDef[] },
   { kind: "watershed" as const, mode: "map" as const, params: { seed_thresh:0.5, bg_iterations:3, bg_ksize:3 }, label: "Watershed",
     help: "分水岭分离重叠颗粒：距离变换+种子标记+分水岭",
     fields: [
