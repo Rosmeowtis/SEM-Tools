@@ -105,8 +105,9 @@ def op_morphology_ellipse(img: np.ndarray, params: dict) -> np.ndarray:
     """
     t = cv2.MORPH_OPEN if params.get("type") == "open" else cv2.MORPH_CLOSE
     k = params.get("ksize", 3)
+    it = params.get("iterations", 1)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
-    return cv2.morphologyEx(img, t, kernel)
+    return cv2.morphologyEx(img, t, kernel, iterations=it)
 
 
 def op_invert(img: np.ndarray, params: dict) -> np.ndarray:

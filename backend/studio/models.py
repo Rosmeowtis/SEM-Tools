@@ -73,6 +73,7 @@ class ThresholdParams(BaseModel):
 class MorphologyParams(BaseModel):
     type: Literal["open", "close"] = "open"
     ksize: int = 3
+    iterations: int = 1
 
 
 class InvertParams(BaseModel):

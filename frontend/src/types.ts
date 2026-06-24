@@ -26,7 +26,7 @@ export type OperationParams =
   | { ksize: number }
   | { threshold: number }
   | { offset: number; algorithm: "left_peak" | "right_peak" | "otsu" }
-  | { type: "open" | "close"; ksize: number }
+  | { type: "open" | "close"; ksize: number; iterations: number }
   | { type: "png" | "jpg" | "webp"; quality: number };
 
 export type Operation = {
@@ -86,11 +86,12 @@ export const OP_KINDS = [
       { key:"algorithm", label:"Algorithm", type:"select", options:["left_peak","right_peak","otsu"], default:"left_peak", help:"left_peak=主峰左侧最大距离, right_peak=主峰右侧最大距离, otsu=大津法" },
       { key:"offset", label:"Offset", type:"number", default:0, help:"对自动检测的阈值进行偏移修正" },
     ] as FieldDef[] },
-  { kind: "morphology_ellipse" as const, mode: "map" as const, params: { type:"open" as const, ksize:3 }, label: "Morphology",
+  { kind: "morphology_ellipse" as const, mode: "map" as const, params: { type:"open" as const, ksize:3, iterations:1 }, label: "Morphology",
     help: "椭圆结构元素的形态学开/闭运算",
     fields: [
       { key:"type", label:"Type", type:"select", options:["open","close"], default:"open", help:"open=消除亮噪点，close=填充暗孔洞" },
       { key:"ksize", label:"Kernel Size", type:"number", default:3, help:"核直径，越大效果越强" },
+      { key:"iterations", label:"Iterations", type:"number", default:1, help:"重复运算次数" },
     ] as FieldDef[] },
   { kind: "invert" as const,    mode: "map" as const,    params: {} as Record<string,never>, label: "Invert",
     help: "按位取反，白变黑、黑变白",
