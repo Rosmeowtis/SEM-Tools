@@ -157,7 +157,8 @@ def op_watershed(img: np.ndarray, params: dict) -> np.ndarray:
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ks, ks))
     bg = cv2.dilate(gray, kernel, iterations=params.get("bg_iterations", 3))
     markers[bg == 0] = 0
-    result = cv2.watershed(cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), markers)
+    color = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    result = cv2.watershed(color, markers)
     result[result == -1] = 0
     return cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)  # ty:ignore[no-matching-overload]
 
