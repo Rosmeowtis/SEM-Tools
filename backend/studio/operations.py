@@ -136,35 +136,62 @@ def op_format(img: np.ndarray, params: dict) -> np.ndarray:
 
 
 def op_auto_threshold(img: np.ndarray, params: dict) -> np.ndarray:
-    """直方图单峰法自动阈值二值化。
-
-    寻找直方图主峰左侧的"最大距离点"作为阈值，支持偏移量调整。
+    """自动阈值二值化：单峰左/右最大距离点 + 大津法。
 
     Args:
         img: 输入图像。
-        params: {"offset"} — 对自动计算的阈值进行偏移修正。
+        params: {"algorithm", "offset"} — 阈值算法 + 偏移修正。
 
     Returns:
         二值图像（0 / 255）。
     """
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    algorithm = params.get("algorithm", "left_peak")
+
+    if algorithm == "otsu":
+        ret, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        offset = params.get("offset", 0)
+        if offset:
+            ret = max(0, min(255, ret + offset))
+            _, binary = cv2.threshold(gray, ret, 255, cv2.THRESH_BINARY)
+        return binary
+
     hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten().astype(np.float32)
     peak = int(np.argmax(hist))
-    left = 0
-    for i in range(peak):
-        if hist[i] > 0:
-            left = i
-            break
-    max_dist = -1.0
-    best_thresh = left
-    for i in range(left, peak):
-        dist = abs(
-            (peak - left) * (hist[i] - hist[left])
-            - (i - left) * (hist[peak] - hist[left])
-        )
-        if dist > max_dist:
-            max_dist = dist
-            best_thresh = i
+
+    if algorithm == "right_peak":
+        right = 255
+        for i in range(255, peak, -1):
+            if hist[i] > 0:
+                right = i
+                break
+        max_dist = -1.0
+        best_thresh = right
+        for i in range(peak + 1, right + 1):
+            dist = abs(
+                (right - peak) * (hist[i] - hist[peak])
+                - (i - peak) * (hist[right] - hist[peak])
+            )
+            if dist > max_dist:
+                max_dist = dist
+                best_thresh = i
+    else:
+        left = 0
+        for i in range(peak):
+            if hist[i] > 0:
+                left = i
+                break
+        max_dist = -1.0
+        best_thresh = left
+        for i in range(left, peak):
+            dist = abs(
+                (peak - left) * (hist[i] - hist[left])
+                - (i - left) * (hist[peak] - hist[left])
+            )
+            if dist > max_dist:
+                max_dist = dist
+                best_thresh = i
+
     offset = params.get("offset", 0)
     final_thresh = max(0, min(255, best_thresh + offset))
     _, binary = cv2.threshold(gray, final_thresh, 255, cv2.THRESH_BINARY)

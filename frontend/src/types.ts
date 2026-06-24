@@ -25,7 +25,7 @@ export type OperationParams =
   | { type: "porosity" | "statistics" | "distribution" }
   | { ksize: number }
   | { threshold: number }
-  | { offset: number }
+  | { offset: number; algorithm: "left_peak" | "right_peak" | "otsu" }
   | { type: "open" | "close"; ksize: number }
   | { type: "png" | "jpg" | "webp"; quality: number };
 
@@ -80,9 +80,12 @@ export const OP_KINDS = [
   { kind: "threshold" as const, mode: "map" as const,    params: { threshold:127 }, label: "Threshold",
     help: "固定阈值二值化，高于阈值的像素变白（255），低于变黑（0）",
     fields: [{ key:"threshold", label:"Threshold", type:"number", default:127, help:"二值化阈值（0-255）" }] as FieldDef[] },
-  { kind: "auto_threshold" as const, mode: "map" as const, params: { offset:0 }, label: "Auto Threshold",
-    help: "直方图单峰分析法自动确定二值化阈值",
-    fields: [{ key:"offset", label:"Offset", type:"number", default:0, help:"对自动检测的阈值进行偏移修正" }] as FieldDef[] },
+  { kind: "auto_threshold" as const, mode: "map" as const, params: { algorithm:"left_peak" as const, offset:0 }, label: "Auto Threshold",
+    help: "自动二值化：单峰左/右最大距离点 + 大津法",
+    fields: [
+      { key:"algorithm", label:"Algorithm", type:"select", options:["left_peak","right_peak","otsu"], default:"left_peak", help:"left_peak=主峰左侧最大距离, right_peak=主峰右侧最大距离, otsu=大津法" },
+      { key:"offset", label:"Offset", type:"number", default:0, help:"对自动检测的阈值进行偏移修正" },
+    ] as FieldDef[] },
   { kind: "morphology_ellipse" as const, mode: "map" as const, params: { type:"open" as const, ksize:3 }, label: "Morphology",
     help: "椭圆结构元素的形态学开/闭运算",
     fields: [

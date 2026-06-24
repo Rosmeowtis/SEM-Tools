@@ -85,6 +85,7 @@ class FormatParams(BaseModel):
 
 
 class AutoThresholdParams(BaseModel):
+    algorithm: Literal["left_peak", "right_peak", "otsu"] = "left_peak"
     offset: int = 0
 
 
