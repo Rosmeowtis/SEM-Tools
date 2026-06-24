@@ -94,6 +94,11 @@ class TophatParams(BaseModel):
     ksize: int = 81
 
 
+class DistanceTransformParams(BaseModel):
+    distance_type: Literal["L1", "L2", "C"] = "L2"
+    mask_size: int = 3
+
+
 # --- Discriminated union of operations ---
 
 
@@ -145,6 +150,12 @@ class TophatOp(BaseModel):
     params: TophatParams = Field(default_factory=TophatParams)
 
 
+class DistanceTransformOp(BaseModel):
+    kind: Literal["distance_transform"] = "distance_transform"
+    mode: Literal["map"] = "map"
+    params: DistanceTransformParams = Field(default_factory=DistanceTransformParams)
+
+
 class MorphologyOp(BaseModel):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
     mode: Literal["map"] = "map"
@@ -175,6 +186,7 @@ Operation = Annotated[
         InvertOp,
         FormatOp,
         TophatOp,
+        DistanceTransformOp,
         AnalyzeOp,
     ],
     Field(discriminator="kind"),

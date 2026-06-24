@@ -27,11 +27,12 @@ export type OperationParams =
   | { threshold: number }
   | { offset: number; algorithm: "left_peak" | "right_peak" | "otsu" }
   | { type: "open" | "close"; ksize: number; iterations: number }
-  | { type: "png" | "jpg" | "webp"; quality: number };
+  | { type: "png" | "jpg" | "webp"; quality: number }
+  | { distance_type: "L1" | "L2" | "C"; mask_size: number };
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat";
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -99,6 +100,12 @@ export const OP_KINDS = [
   { kind: "tophat" as const,   mode: "map" as const,    params: { ksize:81 }, label: "Tophat",
     help: "顶帽变换消除不均匀光照：大核开运算提取背景，原图减背景保留细节",
     fields: [{ key:"ksize", label:"Kernel Size", type:"number", default:81, help:"结构元素直径，越大背景估计越平滑" }] as FieldDef[] },
+  { kind: "distance_transform" as const, mode: "map" as const, params: { distance_type:"L2" as const, mask_size:3 }, label: "Distance",
+    help: "距离变换：每个前景像素到最近背景像素的距离",
+    fields: [
+      { key:"distance_type", label:"Distance", type:"select", options:["L1","L2","C"], default:"L2", help:"L1=曼哈顿, L2=欧氏, C=棋盘" },
+      { key:"mask_size", label:"Mask", type:"number", default:3, help:"距离掩码大小（0/3/5），越大越精确" },
+    ] as FieldDef[] },
   { kind: "format" as const,    mode: "map" as const,    params: { type:"png" as const, quality:85 }, label: "Format",
     help: "输出格式标记，不改变像素数据",
     fields: [

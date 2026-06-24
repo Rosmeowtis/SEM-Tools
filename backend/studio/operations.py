@@ -110,6 +110,25 @@ def op_morphology_ellipse(img: np.ndarray, params: dict) -> np.ndarray:
     return cv2.morphologyEx(img, t, kernel, iterations=it)
 
 
+def op_distance_transform(img: np.ndarray, params: dict) -> np.ndarray:
+    """距离变换：每个前景像素到最近背景像素的距离。
+
+    Args:
+        img: 输入图像（BGR 或灰度）。
+        params: {"distance_type", "mask_size"} — 距离度量 + 掩码大小。
+
+    Returns:
+        归一化到 0-255 的距离图灰度图。
+    """
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    dt_map = {"L1": cv2.DIST_L1, "L2": cv2.DIST_L2, "C": cv2.DIST_C}
+    dist_type = dt_map.get(params.get("distance_type", "L2"), cv2.DIST_L2)
+    ms = max(1, params.get("mask_size", 3) | 1)
+    dist = cv2.distanceTransform(gray, dist_type, ms)
+    norm = cv2.normalize(dist, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)  # ty:ignore[no-matching-overload]
+    return norm
+
+
 def op_invert(img: np.ndarray, params: dict) -> np.ndarray:
     """按位取反（颜色反转）。
 
@@ -476,6 +495,7 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "format": op_format,
     "auto_threshold": op_auto_threshold,
     "tophat": op_tophat,
+    "distance_transform": op_distance_transform,
 }
 
 
