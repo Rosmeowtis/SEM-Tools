@@ -72,6 +72,10 @@ No SSE preview endpoint — the frontend uses `execute` + thumb/full image URLs 
 3. TDD before implementation
 4. Verify before claiming completion
 
+## Newcomer guide
+
+New team members should start with `docs/README.md` for project overview, architecture, and common tasks.
+
 Load skills via the `Skill` tool by name. Do not read `SKILL.md` directly.
 
 <!-- superpowers-zh:begin (do not edit between these markers) -->
