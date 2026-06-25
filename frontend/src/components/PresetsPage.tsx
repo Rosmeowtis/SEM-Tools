@@ -11,7 +11,7 @@ import type { Operation, OperationParams, Preset } from "../types";
 import { OP_KINDS } from "../types";
 import { SortableOpItem } from "./SortableOpItem";
 import { SchemaForm } from "./SchemaForm";
-import { AddOpDropdown } from "./AddOpDropdown";
+import { AddOpPicker } from "./AddOpPicker";
 
 export function PresetsPage({ onPresetsChange }: { onPresetsChange?: () => void }) {
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -99,7 +99,7 @@ export function PresetsPage({ onPresetsChange }: { onPresetsChange?: () => void 
               </SortableContext>
             </DndContext>
           )}
-          <AddOpDropdown onAdd={(kind) => {
+          <AddOpPicker onAdd={(kind) => {
             const template = OP_KINDS.find(k => k.kind === kind);
             if (!template) return;
             const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };

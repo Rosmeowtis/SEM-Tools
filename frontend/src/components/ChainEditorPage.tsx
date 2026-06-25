@@ -16,7 +16,7 @@ import { OP_KINDS } from "../types";
 import { ChainTitle } from "./ChainTitle";
 import { SortableOpItem } from "./SortableOpItem";
 import { SchemaForm } from "./SchemaForm";
-import { AddOpDropdown } from "./AddOpDropdown";
+import { AddOpPicker } from "./AddOpPicker";
 
 export function ChainEditorPage() {
   const { pid, cid } = useParams<{ pid: string; cid: string }>();
@@ -189,7 +189,7 @@ export function ChainEditorPage() {
                   </SortableContext>
                 </DndContext>
               )}
-              <AddOpDropdown onAdd={(kind) => {
+              <AddOpPicker onAdd={(kind) => {
                 const template = OP_KINDS.find(k => k.kind === kind);
                 if (!template) return;
                 const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };
