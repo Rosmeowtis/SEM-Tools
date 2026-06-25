@@ -53,9 +53,13 @@ export interface FieldDef {
   key: string;
   label: string;
   type: "number" | "select";
-  options?: readonly string[];
+  options?: readonly (string | number)[];
   default: number | string;
   help?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+  odd?: boolean;
 }
 
 export const OP_KINDS = [
@@ -82,12 +86,12 @@ export const OP_KINDS = [
     fields: [{ key:"ksize", label:"Kernel Size", type:"number", default:3, help:"高斯核大小，越大模糊越强（自动取奇数）" }] as FieldDef[] },
   { kind: "threshold" as const, mode: "map" as const,    params: { threshold:127 }, label: "Threshold",
     help: "固定阈值二值化，高于阈值的像素变白（255），低于变黑（0）",
-    fields: [{ key:"threshold", label:"Threshold", type:"number", default:127, help:"二值化阈值（0-255）" }] as FieldDef[] },
+    fields: [{ key:"threshold", label:"Threshold", type:"number", default:127, min:0, max:255, step:1, help:"二值化阈值（0-255）" }] as FieldDef[] },
   { kind: "auto_threshold" as const, mode: "map" as const, params: { algorithm:"left_peak" as const, offset:0 }, label: "Auto Threshold",
     help: "自动二值化：单峰左/右最大距离点 + 大津法",
     fields: [
       { key:"algorithm", label:"Algorithm", type:"select", options:["left_peak","right_peak","otsu"], default:"left_peak", help:"left_peak=主峰左侧最大距离, right_peak=主峰右侧最大距离, otsu=大津法" },
-      { key:"offset", label:"Offset", type:"number", default:0, help:"对自动检测的阈值进行偏移修正" },
+      { key:"offset", label:"Offset", type:"number", default:0, min:-255, max:255, step:1, help:"对自动检测的阈值进行偏移修正" },
     ] as FieldDef[] },
   { kind: "morphology_ellipse" as const, mode: "map" as const, params: { type:"open" as const, ksize:3, iterations:1 }, label: "Morphology",
     help: "椭圆结构元素的形态学开/闭运算",
@@ -105,13 +109,13 @@ export const OP_KINDS = [
   { kind: "centroid_markers" as const, mode: "map" as const, params: { cross_size:5, cross_thickness:1 }, label: "Centroids",
     help: "计算各颗粒质心并用白色十字标注在纯黑背景图上",
     fields: [
-      { key:"cross_size", label:"Cross Size", type:"number", default:5, help:"十字半臂长度（像素）" },
-      { key:"cross_thickness", label:"Thickness", type:"number", default:1, help:"十字线条粗细" },
+      { key:"cross_size", label:"Cross Size", type:"number", default:5, min:1, max:100, step:1, help:"十字半臂长度（像素）" },
+      { key:"cross_thickness", label:"Thickness", type:"number", default:1, min:1, max:100, step:1, help:"十字线条粗细" },
     ] as FieldDef[] },
   { kind: "watershed" as const, mode: "map" as const, params: { seed_thresh:0.5, bg_iterations:3, bg_ksize:3 }, label: "Watershed",
     help: "分水岭分离重叠颗粒：距离变换+种子标记+分水岭",
     fields: [
-      { key:"seed_thresh", label:"Seed Thr.", type:"number", default:0.5, help:"种子检测阈值（距离×max 的比例）" },
+      { key:"seed_thresh", label:"Seed Thr.", type:"number", default:0.5, min:0, max:1, step:0.01, help:"种子检测阈值（距离×max 的比例）" },
       { key:"bg_iterations", label:"BG Iters", type:"number", default:3, help:"背景膨胀迭代次数" },
       { key:"bg_ksize", label:"BG Kernel", type:"number", default:3, help:"背景膨胀核直径" },
     ] as FieldDef[] },
@@ -119,13 +123,13 @@ export const OP_KINDS = [
     help: "距离变换：每个前景像素到最近背景像素的距离",
     fields: [
       { key:"distance_type", label:"Distance", type:"select", options:["L1","L2","C"], default:"L2", help:"L1=曼哈顿, L2=欧氏, C=棋盘" },
-      { key:"mask_size", label:"Mask", type:"number", default:3, help:"距离掩码大小（0/3/5），越大越精确" },
+      { key:"mask_size", label:"Mask", type:"select", options:[3,5], default:3, help:"距离掩码大小（3 或 5），越大越精确" },
     ] as FieldDef[] },
   { kind: "format" as const,    mode: "map" as const,    params: { type:"png" as const, quality:85 }, label: "Format",
     help: "输出格式标记，不改变像素数据",
     fields: [
       { key:"type", label:"Type", type:"select", options:["png","jpg","webp"], default:"png", help:"png=无损，jpg=有损压缩，webp=现代格式" },
-      { key:"quality", label:"Quality", type:"number", default:85, help:"压缩质量（1-100），仅 jpg/webp 有效" },
+      { key:"quality", label:"Quality", type:"number", default:85, min:1, max:100, step:1, help:"压缩质量（1-100），仅 jpg/webp 有效" },
     ] as FieldDef[] },
   { kind: "analyze" as const,   mode: "reduce" as const, params: { type:"porosity" as const }, label: "Analyze",
     help: "跨图聚合统计分析：孔隙率 / 像素统计 / 粒径分布",
