@@ -1,0 +1,65 @@
+{
+  "operations": [
+    {
+      "kind": "crop",
+      "mode": "map",
+      "params": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 1024
+      }
+    },
+    {
+      "kind": "blur",
+      "mode": "map",
+      "params": {
+        "ksize": 5
+      }
+    },
+    {
+      "kind": "grayscale",
+      "mode": "map",
+      "params": {}
+    },
+    {
+      "kind": "auto_threshold",
+      "mode": "map",
+      "params": {
+        "algorithm": "left_peak",
+        "offset": 0
+      }
+    },
+    {
+      "kind": "morphology_ellipse",
+      "mode": "map",
+      "params": {
+        "type": "open",
+        "ksize": 9,
+        "iterations": 1
+      }
+    },
+    {
+      "kind": "morphology_ellipse",
+      "mode": "map",
+      "params": {
+        "type": "close",
+        "ksize": 9,
+        "iterations": 1
+      }
+    },
+    {
+      "kind": "invert",
+      "mode": "map",
+      "params": {}
+    },
+    {
+      "kind": "analyze",
+      "mode": "reduce",
+      "params": {
+        "type": "porosity"
+      }
+    }
+  ],
+  "category": []
+}

@@ -85,6 +85,14 @@ def copy_backend():
         shutil.rmtree(p, ignore_errors=True)
 
 
+def copy_presets():
+    step("复制预设文件")
+    target = BUILD / "_data" / "presets"
+    target.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(REPO / "presets", target, dirs_exist_ok=True)
+    print(f"  → {target}")
+
+
 def build_frontend():
     step("构建前端")
     subprocess.run(["bun", "run", "build"], cwd=str(REPO / "frontend"), check=True)
@@ -161,6 +169,7 @@ def main():
     download_python()
     install_deps()
     copy_backend()
+    copy_presets()
     build_frontend()
     create_start_script()
     create_readme()
