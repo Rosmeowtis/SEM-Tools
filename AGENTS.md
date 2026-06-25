@@ -66,7 +66,7 @@ No SSE preview endpoint — the frontend uses `execute` + thumb/full image URLs 
 
 ## Existing skill framework
 
-`.claude/skills/` has 20 skills (Chinese). Key rules from `AGENT.md`:
+`.claude/skills/` has 20 skills (Chinese). Key rules from `AGENTS.md`:
 1. Check for matching skill before starting work
 2. Brainstorm before coding (for features)
 3. TDD before implementation
@@ -74,7 +74,7 @@ No SSE preview endpoint — the frontend uses `execute` + thumb/full image URLs 
 
 ## Newcomer guide
 
-New team members should start with `docs/README.md` for project overview, architecture, and common tasks.
+New team members should start with `docs/CONTRIBUTORS.md` for project overview, architecture, and common tasks.
 
 Load skills via the `Skill` tool by name. Do not read `SKILL.md` directly.
 

@@ -50,4 +50,4 @@ _data/               # 运行时数据（SQLite + 上传文件 + 缩略图缓存
 - [x] Phase 4 — 链执行 + 结果缩略图/全尺寸预览（Execute 按钮模式，非 SSE）
 - [x] Phase 5 — 导出（单文件 + 批量）+ Preset 系统
 - [-] Phase 6 — 标签管理、搜索、CommandPalette（搜索/CommandPalette 已实现，标签管理已放弃）
-- [ ] Phase 7 — 绿色打包分发（embedded Python + 单目录便携版）
+- [x] Phase 7 — 绿色打包分发（embedded Python + 单目录便携版）
