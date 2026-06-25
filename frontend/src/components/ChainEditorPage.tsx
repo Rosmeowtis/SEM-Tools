@@ -34,6 +34,8 @@ export function ChainEditorPage() {
   const [rightWidth, setRightWidth] = useState(320);
   const rightPanelRef = useRef<HTMLDivElement>(null);
   const [execRev, setExecRev] = useState(0);
+  const [execState, setExecState] = useState<"idle" | "loading" | "error">("idle");
+  const [exportState, setExportState] = useState<"idle" | "loading" | "error">("idle");
 
   const fetchChain = useCallback(() => { if (pid && cid) api.getChain(pid, cid).then(setChain); }, [pid, cid]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -90,20 +92,39 @@ export function ChainEditorPage() {
       <div className="flex items-center px-4 py-2 border-b border-gray-200">
         <ChainTitle chain={chain} onRename={(name) => { if (pid && cid) api.updateChain(pid, cid, { name }).then(setChain); }} />
         <div className="flex gap-2 ml-auto">
-          <button className="px-4 py-1.5 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600"
-            onClick={() => { if (pid && cid) api.executeChain(pid, cid).then(r => { setExecResult(r); setExecRev(v => v + 1); }); }}>
-            Execute
+          <button className={"px-4 py-1.5 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors " + (execState === "loading" ? "bg-green-500 animate-pulse" : execState === "error" ? "bg-red-500 hover:bg-red-600" : "bg-blue-500 hover:bg-blue-600")}
+            disabled={execState === "loading"}
+            onClick={async () => {
+              if (!pid || !cid) return;
+              setExecState("loading");
+              try {
+                const r = await api.executeChain(pid, cid);
+                setExecResult(r);
+                setExecRev(v => v + 1);
+                setExecState("idle");
+              } catch {
+                setExecState("error");
+              }
+            }}>
+            {execState === "loading" ? "Executing..." : execState === "error" ? "Error" : "Execute"}
           </button>
-          <button className="px-4 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600"
-            onClick={() => {
-              fetch(api.exportUrl(pid!, cid!), { method: "POST" }).then(r => r.blob()).then(blob => {
+          <button className={"px-4 py-1.5 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors " + (exportState === "loading" ? "bg-green-500 animate-pulse" : exportState === "error" ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600")}
+            disabled={exportState === "loading"}
+            onClick={async () => {
+              setExportState("loading");
+              try {
+                const r = await fetch(api.exportUrl(pid!, cid!), { method: "POST" });
+                const blob = await r.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url; a.download = `${chain.name}-export.zip`;
                 a.click(); URL.revokeObjectURL(url);
-              });
+                setExportState("idle");
+              } catch {
+                setExportState("error");
+              }
             }}>
-            Export
+            {exportState === "loading" ? "Exporting..." : exportState === "error" ? "Error" : "Export"}
           </button>
         </div>
       </div>
