@@ -45,3 +45,6 @@ scripts/get-pip.py
 # packaging
 /SEM-Tools
 /SEM-Tools*.zip
+
+# worktrees
+.worktrees/
