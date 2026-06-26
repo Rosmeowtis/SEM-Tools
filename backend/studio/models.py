@@ -110,6 +110,14 @@ class CentroidMarkersParams(BaseModel):
     cross_thickness: int = 1
 
 
+class SamplePointsParams(BaseModel):
+    quantity: int = 100
+    algorithm: Literal["halton", "jittered_grid", "regular_grid", "sunflower", "sunflower_lattice"] = "halton"
+    cross_size: int = 5
+    cross_thickness: int = 1
+    seed: int = 0
+
+
 # --- Discriminated union of operations ---
 
 
@@ -179,6 +187,12 @@ class CentroidMarkersOp(BaseModel):
     params: CentroidMarkersParams = Field(default_factory=CentroidMarkersParams)
 
 
+class SamplePointsOp(BaseModel):
+    kind: Literal["sample_points"] = "sample_points"
+    mode: Literal["map"] = "map"
+    params: SamplePointsParams = Field(default_factory=SamplePointsParams)
+
+
 class MorphologyOp(BaseModel):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
     mode: Literal["map"] = "map"
@@ -212,6 +226,7 @@ Operation = Annotated[
         DistanceTransformOp,
         WatershedOp,
         CentroidMarkersOp,
+        SamplePointsOp,
         AnalyzeOp,
     ],
     Field(discriminator="kind"),

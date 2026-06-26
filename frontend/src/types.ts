@@ -30,11 +30,12 @@ export type OperationParams =
   | { type: "png" | "jpg" | "webp"; quality: number }
   | { distance_type: "L1" | "L2" | "C"; mask_size: number }
   | { seed_thresh: number; bg_iterations: number; bg_ksize: number }
-  | { cross_size: number; cross_thickness: number };
+  | { cross_size: number; cross_thickness: number }
+  | { quantity: number; algorithm: "halton" | "jittered_grid" | "regular_grid" | "sunflower" | "sunflower_lattice"; cross_size: number; cross_thickness: number; seed: number };
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers";
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers" | "sample_points";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -111,6 +112,16 @@ export const OP_KINDS = [
     fields: [
       { key:"cross_size", label:"Cross Size", type:"number", default:5, min:1, max:100, step:1, help:"十字半臂长度（像素）" },
       { key:"cross_thickness", label:"Thickness", type:"number", default:1, min:1, max:100, step:1, help:"十字线条粗细" },
+    ] as FieldDef[] },
+  { kind: "sample_points" as const, mode: "map" as const, params: { quantity:100, algorithm:"halton" as const, cross_size:5, cross_thickness:1, seed:0 }, label: "Sample Points",
+    help: "在图像上绘制均匀分布的采样参考点（白十字黑描边），5 种分布算法可选",
+    fields: [
+      { key:"quantity", label:"Quantity", type:"number", default:100, min:1, max:500, step:1, help:"采样点总数" },
+      { key:"algorithm", label:"Algorithm", type:"select", options:["halton","jittered_grid","regular_grid","sunflower","sunflower_lattice"], default:"halton",
+        help:"halton=低偏差序列(默认), jittered_grid=分层抖动网格, regular_grid=规则网格, sunflower=向日葵螺旋(内切椭圆), sunflower_lattice=Fibonacci格点(全矩形)" },
+      { key:"cross_size", label:"Cross Size", type:"number", default:5, min:1, max:100, step:1, help:"十字半臂长度（像素）" },
+      { key:"cross_thickness", label:"Thickness", type:"number", default:1, min:1, max:100, step:1, help:"十字线条粗细" },
+      { key:"seed", label:"Seed", type:"number", default:0, help:"随机种子（仅 jittered_grid 生效）" },
     ] as FieldDef[] },
   { kind: "watershed" as const, mode: "map" as const, params: { seed_thresh:0.5, bg_iterations:3, bg_ksize:3 }, label: "Watershed",
     help: "分水岭分离重叠颗粒：距离变换+种子标记+分水岭",

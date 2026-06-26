@@ -110,6 +110,11 @@ def op_morphology_ellipse(img: np.ndarray, params: dict) -> np.ndarray:
     return cv2.morphologyEx(img, t, kernel, iterations=it)
 
 
+def _draw_cross(canvas, cx, cy, size, thick, color):
+    cv2.line(canvas, (cx - size, cy), (cx + size, cy), color, thick)
+    cv2.line(canvas, (cx, cy - size), (cx, cy + size), color, thick)
+
+
 def op_centroid_markers(img: np.ndarray, params: dict) -> np.ndarray:
     """计算各颗粒质心并用白色十字标注在纯黑背景上。
 
@@ -132,8 +137,107 @@ def op_centroid_markers(img: np.ndarray, params: dict) -> np.ndarray:
         if m["m00"] == 0:
             continue
         cx, cy = int(m["m10"] / m["m00"]), int(m["m01"] / m["m00"])
-        cv2.line(out, (cx - cross, cy), (cx + cross, cy), 255, thick)
-        cv2.line(out, (cx, cy - cross), (cx, cy + cross), 255, thick)
+        _draw_cross(out, cx, cy, cross, thick, 255)
+    return out
+
+
+def _halton(i, b):
+    f, r = 1.0, 0.0
+    while i > 0:
+        f /= b; r += f * (i % b); i //= b
+    return r
+
+
+def _sample_halton(n, w, h):
+    xs, ys = [], []
+    for i in range(1, n + 1):
+        xs.append(int(round(_halton(i, 2) * (w - 1))))
+        ys.append(int(round(_halton(i, 3) * (h - 1))))
+    return xs, ys
+
+
+def _sample_jittered_grid(n, w, h, seed):
+    rng = np.random.default_rng(seed)
+    cols = int(np.ceil(np.sqrt(n)))
+    rows = int(np.ceil(n / cols))
+    cw, ch = w / cols, h / rows
+    xs, ys = [], []
+    for k in range(n):
+        col = k % cols
+        row = k // cols
+        x = (col + rng.random()) * cw
+        y = (row + rng.random()) * ch
+        xs.append(int(np.clip(round(x), 0, w - 1)))
+        ys.append(int(np.clip(round(y), 0, h - 1)))
+    return xs, ys
+
+
+def _sample_regular_grid(n, w, h):
+    cols = int(np.ceil(np.sqrt(n)))
+    rows = int(np.ceil(n / cols))
+    cw, ch = w / cols, h / rows
+    xs, ys = [], []
+    for k in range(n):
+        col = k % cols
+        row = k // cols
+        x = (col + 0.5) * cw
+        y = (row + 0.5) * ch
+        xs.append(int(round(x)))
+        ys.append(int(round(y)))
+    return xs, ys
+
+
+def _sample_sunflower(n, w, h):
+    ga = 2.39996323
+    xs, ys = [], []
+    for k in range(n):
+        r = np.sqrt((k + 0.5) / n)
+        t = k * ga
+        x = (0.5 + 0.5 * r * np.cos(t)) * (w - 1)
+        y = (0.5 + 0.5 * r * np.sin(t)) * (h - 1)
+        xs.append(int(round(x)))
+        ys.append(int(round(y)))
+    return xs, ys
+
+
+def _sample_sunflower_lattice(n, w, h):
+    inv_phi = (5 ** 0.5 - 1) / 2
+    xs, ys = [], []
+    for k in range(1, n + 1):
+        x = ((k * inv_phi) % 1.0) * (w - 1)
+        y = ((k - 0.5) / n) * (h - 1)
+        xs.append(int(round(x)))
+        ys.append(int(round(y)))
+    return xs, ys
+
+
+def op_sample_points(img: np.ndarray, params: dict) -> np.ndarray:
+    H, W = img.shape[:2]
+    n = max(1, params.get("quantity", 100))
+    algorithm = params.get("algorithm", "halton")
+    cross = params.get("cross_size", 5)
+    thick = params.get("cross_thickness", 1)
+    seed = params.get("seed", 0)
+
+    if algorithm == "halton":
+        xs, ys = _sample_halton(n, W, H)
+    elif algorithm == "jittered_grid":
+        xs, ys = _sample_jittered_grid(n, W, H, seed)
+    elif algorithm == "regular_grid":
+        xs, ys = _sample_regular_grid(n, W, H)
+    elif algorithm == "sunflower":
+        xs, ys = _sample_sunflower(n, W, H)
+    elif algorithm == "sunflower_lattice":
+        xs, ys = _sample_sunflower_lattice(n, W, H)
+    else:
+        xs, ys = _sample_halton(n, W, H)
+
+    out = img.copy()
+    white = 255 if out.ndim == 2 else (255, 255, 255)
+    black = 0 if out.ndim == 2 else (0, 0, 0)
+    for x, y in zip(xs, ys):
+        _draw_cross(out, x, y, cross, thick + 2, black)
+        _draw_cross(out, x, y, cross, thick, white)
     return out
 
 
@@ -551,6 +655,7 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "distance_transform": op_distance_transform,
     "watershed": op_watershed,
     "centroid_markers": op_centroid_markers,
+    "sample_points": op_sample_points,
 }
 
 
