@@ -212,6 +212,24 @@ def _sample_sunflower_lattice(n, w, h):
 
 
 def op_sample_points(img: np.ndarray, params: dict) -> np.ndarray:
+    """在原图上绘制均匀分布的采样参考点（白十字 + 1px 黑描边）。
+
+    通过 algorithm 参数选择 5 种二维均匀分布算法：
+    - halton：Halton(2,3) 低偏差序列，确定性、任意数量均匀铺满矩形，默认算法。
+    - jittered_grid：分层抖动网格（近正方形网格 + 格内均匀抖动），经典分层均匀，
+      可配合 seed 参数复现。
+    - regular_grid：规则网格取格中心，末行可能部分填充，无随机性。
+    - sunflower：金角向日螺旋填矩形内切椭圆，四角留空，径向均匀。
+    - sunflower_lattice：Fibonacci 秩-1 格点（QMC），x 轴黄金比例分数部分，
+      y 轴等差分层，填满整个矩形。
+
+    Args:
+        img: 输入图像（BGR 或灰度）。
+        params: {quantity, algorithm, cross_size, cross_thickness, seed}。
+
+    Returns:
+        叠加了参考点标记的图像（与输入同 shape / dtype）。
+    """
     H, W = img.shape[:2]
     n = max(1, params.get("quantity", 100))
     algorithm = params.get("algorithm", "halton")
