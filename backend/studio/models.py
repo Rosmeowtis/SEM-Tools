@@ -90,6 +90,18 @@ class AutoThresholdParams(BaseModel):
     offset: int = 0
 
 
+class AutoThreshold2Params(BaseModel):
+    """auto_threshold_2 参数：二阶灰度（梯度）双阈值过滤阴影误识别。
+
+    基于 left_peak 肩部法二值化后，逐连通域计算边界/内部梯度比，
+    抹除"边界不陡且内部不空"的疑似阴影区域。保守默认偏漏判阴影。
+    """
+
+    min_area: int = 50
+    tau_R: float = 2.0
+    tau_i: float = 0.0
+
+
 class TophatParams(BaseModel):
     ksize: int = 81
 
@@ -163,6 +175,14 @@ class AutoThresholdOp(BaseModel):
     params: AutoThresholdParams = Field(default_factory=AutoThresholdParams)
 
 
+class AutoThreshold2Op(BaseModel):
+    """二阶灰度版自动阈值：left_peak 基线 + 边界/内部梯度比过滤阴影。"""
+
+    kind: Literal["auto_threshold_2"] = "auto_threshold_2"
+    mode: Literal["map"] = "map"
+    params: AutoThreshold2Params = Field(default_factory=AutoThreshold2Params)
+
+
 class TophatOp(BaseModel):
     kind: Literal["tophat"] = "tophat"
     mode: Literal["map"] = "map"
@@ -219,6 +239,7 @@ Operation = Annotated[
         BlurOp,
         ThresholdOp,
         AutoThresholdOp,
+        AutoThreshold2Op,
         MorphologyOp,
         InvertOp,
         FormatOp,

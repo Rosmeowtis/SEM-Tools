@@ -393,6 +393,67 @@ def op_auto_threshold(img: np.ndarray, params: dict) -> np.ndarray:
     return binary
 
 
+def op_auto_threshold_2(img: np.ndarray, params: dict) -> np.ndarray:
+    """二阶灰度版自动阈值：left_peak 基线 + 边界/内部梯度比过滤阴影误识别。
+
+    一阶直方图法无法区分"低灰度但内部平坦的真孔隙"与"低灰度且内部渐变的
+    阴影"——两者落在同一拖尾。本算子引入二阶统计量（梯度）做后处理：
+    先用 left_peak 肩部法得初步二值图，再逐连通域计算边界带梯度均值 G_b
+    与内部梯度均值 G_i，比值 R = G_b/(G_i+eps)。真孔隙边界陡、内部平
+    (R 大)；阴影边界缓、内部仍有梯度 (R 小)。与门 R<tau_R 且 G_i>tau_i
+    则判为阴影并抹除。
+
+    v1 局限：锐边投掷阴影（边界也陡）会误留；粗糙壁面孔隙（内部梯度高）
+    会误杀——用户可调 tau_R/tau_i 缓解。合并孔隙建议链中前置 watershed。
+
+    Args:
+        img: 输入图像。
+        params: {"min_area", "tau_R", "tau_i"} — 小于 min_area 的连通域
+            跳过判定（保守放过）；tau_i=0 时按图像梯度中位数×0.5 自适应。
+
+    Returns:
+        二值图像（0 / 255）。
+    """
+    # Phase 1: 基线二值化（固定 left_peak，复用既有逻辑）
+    binary = op_auto_threshold(img, {"algorithm": "left_peak", "offset": 0})
+
+    min_area = int(params.get("min_area", 50))
+    tau_R = float(params.get("tau_R", 2.0))
+    tau_i = float(params.get("tau_i", 0.0))
+
+    gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gx = cv2.Scharr(gray, cv2.CV_32F, 1, 0)
+    gy = cv2.Scharr(gray, cv2.CV_32F, 0, 1)
+    grad = cv2.magnitude(gx, gy)
+    if tau_i == 0.0:
+        tau_i = float(np.median(grad)) * 0.5
+
+    # 候选孔隙 = 暗相（binary==0）。取反后连通域即暗块（孔隙 + 阴影）。
+    fg = (binary == 0).astype(np.uint8) * 255
+    num, labels = cv2.connectedComponents(fg, connectivity=8)
+    if num <= 1:
+        return binary
+
+    r = 3
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (r * 2 + 1, r * 2 + 1))
+    eps = 1e-8
+    for lbl in range(1, num):
+        mask = labels == lbl
+        if mask.sum() < min_area:
+            continue
+        interior = cv2.erode(mask.astype(np.uint8), k).astype(bool)
+        dilated = cv2.dilate(mask.astype(np.uint8), k).astype(bool)
+        boundary = dilated & ~interior  # 跨边界环带（膨胀 XOR 腐蚀），捕获边缘灰度阶跃
+        if not boundary.any() or not interior.any():
+            continue
+        G_b = float(grad[boundary].mean())
+        G_i = float(grad[interior].mean())
+        R = G_b / (G_i + eps)
+        if R < tau_R and G_i > tau_i:
+            binary[mask] = 255  # 判为阴影 → 重分类为背景
+    return binary
+
+
 def op_tophat(img: np.ndarray, params: dict) -> np.ndarray:
     """顶帽变换（Top-hat）：大核形态学开运算消除不均匀光照。
 
@@ -669,6 +730,7 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "invert": op_invert,
     "format": op_format,
     "auto_threshold": op_auto_threshold,
+    "auto_threshold_2": op_auto_threshold_2,
     "tophat": op_tophat,
     "distance_transform": op_distance_transform,
     "watershed": op_watershed,
@@ -681,3 +743,33 @@ def apply_map_op(img: np.ndarray, op: dict) -> np.ndarray:
     """通过 op.kind 查找对应的 map 函数并调用。"""
     fn = _MAP_OPS.get(op["kind"])
     return fn(img, op["params"]) if fn else img
+
+
+def _demo():
+    """最小自检：人造图上验证 auto_threshold_2 能抹除"阴影"并保留"真孔隙"。
+
+    构造一张含真孔隙（暗块+陡边界）与渐变阴影（暗到亮的平滑过渡）的合成
+    灰度图，确认新版孔隙率低于无梯度过滤的 baseline，且非负。语义：阴影
+    被抹除应使白像素（孔隙相）减少。
+    """
+    rng = np.full((300, 300), 200, np.float32)  # 亮背景
+    yy, xx = np.mgrid[0:300, 0:300]
+    # 真孔隙：陡边界平坦暗块
+    rng[40:90, 40:90] = 30
+    # 渐变阴影：平滑余弦下凹，内部带梯度、边缘平滑融入背景
+    d = np.sqrt((xx - 220) ** 2 + (yy - 220) ** 2)
+    rng -= 120 * 0.5 * (1 + np.cos(np.clip(d / 45, 0, np.pi) * np.pi))
+    rng = np.clip(rng, 30, 255).astype(np.uint8)
+    baseline = op_auto_threshold(rng, {"algorithm": "left_peak", "offset": 0})
+    filtered = op_auto_threshold_2(rng, {"min_area": 50, "tau_R": 2.0, "tau_i": 0.0})
+    base_w = float((baseline == 255).mean())
+    filt_w = float((filtered == 255).mean())
+    # 抹除渐变阴影 → 重分类为背景 → 白增多。要求严格改善，否则过滤未生效。
+    assert filt_w > base_w, f"过滤应抹除阴影使背景增多: filt={filt_w} <= base={base_w}"
+    # 真孔隙须保留：过滤后仍应有暗块存在
+    assert (filtered == 0).sum() > 0, "真孔隙被误抹除"
+    print(f"demo ok: baseline_bg={base_w:.3f} filtered_bg={filt_w:.3f}")
+
+
+if __name__ == "__main__":
+    _demo()

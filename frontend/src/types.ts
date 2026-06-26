@@ -26,6 +26,7 @@ export type OperationParams =
   | { ksize: number }
   | { threshold: number }
   | { offset: number; algorithm: "left_peak" | "right_peak" | "otsu" }
+  | { min_area: number; tau_R: number; tau_i: number }
   | { type: "open" | "close"; ksize: number; iterations: number }
   | { type: "png" | "jpg" | "webp"; quality: number }
   | { distance_type: "L1" | "L2" | "C"; mask_size: number }
@@ -35,7 +36,7 @@ export type OperationParams =
 
 export type Operation = {
   kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers" | "sample_points";
+        "threshold" | "auto_threshold" | "auto_threshold_2" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers" | "sample_points";
   mode: "map" | "reduce";
   params: OperationParams;
 };
@@ -93,6 +94,13 @@ export const OP_KINDS = [
     fields: [
       { key:"algorithm", label:"Algorithm", type:"select", options:["left_peak","right_peak","otsu"], default:"left_peak", help:"left_peak=主峰左侧最大距离, right_peak=主峰右侧最大距离, otsu=大津法" },
       { key:"offset", label:"Offset", type:"number", default:0, min:-255, max:255, step:1, help:"对自动检测的阈值进行偏移修正" },
+    ] as FieldDef[] },
+  { kind: "auto_threshold_2" as const, mode: "map" as const, params: { min_area:50, tau_R:2.0, tau_i:0 }, label: "Auto Threshold 2",
+    help: "二阶灰度版自动二值化：left_peak 基线 + 边界/内部梯度比过滤阴影误识别（与 auto_threshold 区分）",
+    fields: [
+      { key:"min_area", label:"Min Area", type:"number", default:50, min:0, step:1, help:"小于此像素数的连通域跳过判定（保守放过小区域）" },
+      { key:"tau_R", label:"Tau R", type:"number", default:2.0, min:1, step:0.1, help:"边界/内部梯度比下限，低于此且内部非空判为阴影。越小越保守(少抹除)" },
+      { key:"tau_i", label:"Tau I", type:"number", default:0, min:0, step:0.1, help:"内部梯度绝对阈值(与门)。0=按图像梯度中位数×0.5 自适应" },
     ] as FieldDef[] },
   { kind: "morphology_ellipse" as const, mode: "map" as const, params: { type:"open" as const, ksize:3, iterations:1 }, label: "Morphology",
     help: "椭圆结构元素的形态学开/闭运算",
