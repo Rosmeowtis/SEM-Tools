@@ -116,27 +116,15 @@ _data/
 
 ### 布局结构
 
-```
-┌─────────┬─────────────────────────────────────────────────────┐
-│ Sidebar │  Topbar (Execute/Export 按钮)                       │
-│         ├─────────────────────────────────────────────────────┤
-│ 项目列表│  三栏编辑器                                          │
-│ 资源面板│  ┌──────────┬────────────────────┬──────────────┐   │
-│ 链列表   │  │Resource  │   Chain Canvas     │  Inspector   │   │
-│         │  │Picker    │   ┌──────────────┐ │  选中某      │   │
-│         │  │(缩略图   │   │  Operation 1  │ │  Operation   │   │
-│         │  │ 网格)    │   │  Operation 2  │ │  的参数编辑  │   │
-│         │  │点击选中  │   │  Operation 3  │ │  表单        │   │
-│         │  │当前资源  │   │  ...          │ │             │   │
-│         │  │高亮      │   │  ──────────   │ │  ────────   │   │
-│         │  │          │   │  预览图区域    │ │  (Schema    │   │
-│         │  │          │   └──────────────┘ │ │   Form)    │   │
-│         │  │          │   (拖拽排序 +      │ │             │   │
-│         │  │          │    实时预览)        │ │             │   │
-│         │  └──────────┴────────────────────┴──────────────┘   │
-│         │  (链选择 tabs，单个 Project 可有多条链)              │
-└─────────┴─────────────────────────────────────────────────────┘
-```
++ root (2 col)
+    + sidebar (left): list projects and chains, with create project/chain button
+    + main (right) (2 row)
+        + topbar (up): execute + export button on right, one line height
+        + editor (down) (2 col)
+            + preview area (left): preview images and analysis text, bigger than operation area
+            + operation area (right) (2 row)
+                + operation list (up): list operations in using, with add operation button
+                + operation params (down): edit parameters of choosen operation
 
 ## 5. 前后端通信
 
@@ -238,27 +226,14 @@ class ReduceOperation:
 
 #### 流式执行引擎
 
-```python
-def execute_chain(resource_ids: list[str], operations: list[Operation]) -> dict:
-    map_ops = [op for op in operations if op.mode == "map"]
-    reduce_ops = [op for op in operations if op.mode == "reduce"]
-
-    # Reduce 操作初始化各自的状态
-    reduce_states = {id(op): op.init_state() for op in reduce_ops}
-
-    # 流式遍历资源，一次一张图
-    for rid in resource_ids:
-        img = load_image(rid)
-        for op in map_ops:
-            img = apply_map(op, img)
-        for op in reduce_ops:
-            reduce_states[id(op)] = op.accumulate(reduce_states[id(op)], img, {"resource_id": rid})
-        del img  # 立即释放
-
-    # Finalize Reduce 操作
-    results = {op.kind: op.finalize(reduce_states[id(op)]) for op in reduce_ops}
-    return results
-```
+核心概念：
+- **管道式执行**：operations 严格按用户定义顺序执行。
+- **map**：变换图像，输出传给下一个操作。
+- **reduce**：在当前位置"采集"图像状态，写入 ChainState 副作用容器，
+  图像本身继续向后流动（不阻塞管道）。
+- **ChainState**：管理所有 reduce 累加器 + TextBuffer（人类可读的分析报告）。
+- **run_pipeline**：统一管道函数，execute_chain 和 execute_and_preview
+  共享此核心，仅通过 per_resource 回调区分保存逻辑。
 
 **注意**：`load_image` 是 I/O 边界操作，引擎层在遍历 `resource_ids` 时支持按批次提交（当前批的图像处理 + 下一批的 I/O 预热）以利用异步 I/O，但业务语义不变——一次只 hold 一张像素矩阵。
 
@@ -280,7 +255,6 @@ def execute_chain(resource_ids: list[str], operations: list[Operation]) -> dict:
 | **不走 SSE，Execute 按钮触发全量处理** | 简化架构：减少异步状态管理，用户显式点击 Execute 触发处理，结果通过 thumb/full URL 加载。无自动推送。 |
 | **不回滚历史，链即历史** | Chain 的 JSON 就是完整的操作历史。回滚 = 修改 JSON；分支 = 复制 Chain 再改。不需要 undo 栈。 |
 | **Map/Reduce 两阶段执行** | 不拆分则批处理时要么内存爆炸（全载入），要么无法跨图聚合。Map 流式 + Reduce 累计，内存 O(1张图) 同时保持链语义。 |
-| **analyze 统一 kind** | 不独立成 `compute_porosity` / `compute_statistics` / `compute_distribution`，而用 `analyze.type` 区分。避免 kind 膨胀，新增分析类型不破坏 Chain 结构。 |
 | **analyze 统一 kind** | 不独立成 `compute_porosity` / `compute_statistics` / `compute_distribution`，而用 `analyze.type` 区分。避免 kind 膨胀，新增分析类型不破坏 Chain 结构。 |
 
 ### 当需要扩展时

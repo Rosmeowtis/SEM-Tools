@@ -192,7 +192,4 @@ POST execute → run_pipeline → 写 thumb_cache/
 
 1. 收到任务先检查匹配 skill
 2. 功能需求先 brainstorming
-3. TDD 先于实现
-4. 完成前必须验证
-
-详情见 `AGENTS.md`。
+3. 完成前必须验证
