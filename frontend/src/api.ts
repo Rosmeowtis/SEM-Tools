@@ -7,6 +7,13 @@
 */
 import type { Chain, Operation, Preset, Project, ResourceMeta } from "./types";
 
+/** 剥离前端专属字段，防止 Pydantic 拒绝。 */
+function stripOp(op: Operation) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { enabled, ...rest } = op;
+  return rest;
+}
+
 export const BASE = "/api";
 
 /** 通用 JSON fetch 封装。非 2xx 状态码抛错。 */
@@ -87,7 +94,10 @@ export const api = {
     req<Chain>(`/projects/${pid}/chains/${cid}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        ...data,
+        operations: data.operations?.map(stripOp),
+      }),
     }),
   deleteChain: (pid: string, cid: string) =>
     req<{ deleted: boolean }>(`/projects/${pid}/chains/${cid}`, { method: "DELETE" }),
@@ -96,10 +106,14 @@ export const api = {
   exportUrl: (pid: string, cid: string, rid?: string) =>
     `${BASE}/projects/${pid}/chains/${cid}/export${rid ? `?rid=${rid}` : ""}`,
 
-  /** 全量执行链，返回处理结果缩略图索引 + 分析数据。 */
-  executeChain: (pid: string, cid: string) =>
+  /** 全量执行链，返回处理结果缩略图索引 + 分析数据。operations 从前端传入，后端不再读文件。 */
+  executeChain: (pid: string, cid: string, operations: Operation[]) =>
     req<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> }>(
-      `/projects/${pid}/chains/${cid}/execute`, { method: "POST" }),
+      `/projects/${pid}/chains/${cid}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operations: operations.map(stripOp) }),
+      }),
 
   /** 执行结果缩略图 URL。 */
   executeThumbUrl: (pid: string, cid: string, idx: number) =>

@@ -102,7 +102,7 @@ export function PresetsPage({ onPresetsChange }: { onPresetsChange?: () => void 
           <AddOpPicker onAdd={(kind) => {
             const template = OP_KINDS.find(k => k.kind === kind);
             if (!template) return;
-            const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };
+            const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams, enabled: true };
             setEditOps([...editOps, newOp]);
             setOpIds([...opIds, `op-${nextId.current++}`]);
           }} />

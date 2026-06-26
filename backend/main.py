@@ -77,6 +77,7 @@ from studio.config import DATA_DIR, THUMB_CACHE_DIR
 from studio.models import (
     ChainCreate,
     ChainUpdate,
+    ExecuteBody,
     PresetCreate,
     PresetUpdate,
     ProjectCreate,
@@ -439,8 +440,8 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
 
 
 @app.post("/api/projects/{pid}/chains/{cid}/execute")
-def exec_chain(pid: str, cid: str):
-    """全量执行链：处理所有资源，返回缩略图索引 + 分析结果 + 文本报告。
+def exec_chain(pid: str, cid: str, body: ExecuteBody):
+    """全量执行链：operations 由前端传入，不再从 JSON 文件加载。
 
     前端通过 execute-thumb/{idx} / execute-full/{idx} 获取图片。
     """
@@ -451,8 +452,7 @@ def exec_chain(pid: str, cid: str):
     if not chain:
         raise HTTPException(404, "Chain not found")
 
-    cf = _chain_file(pid, p["slug"], cid)
-    operations = json.loads(cf.read_text()) if cf.exists() else []
+    operations = body.operations
 
     resource_ids = json.loads(chain["resource_ids_json"])
     if not resource_ids:

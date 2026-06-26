@@ -1,3 +1,12 @@
+/** 前端专属 Operation 扩展：enabled 仅在 React state 中标记，不持久化到后端。 */
+export type Operation = {
+  kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
+        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers" | "sample_points";
+  mode: "map" | "reduce";
+  params: OperationParams;
+  enabled?: boolean;
+};
+
 /** 项目 */
 export interface Project {
   id: string;
@@ -32,13 +41,6 @@ export type OperationParams =
   | { seed_thresh: number; bg_iterations: number; bg_ksize: number }
   | { cross_size: number; cross_thickness: number }
   | { quantity: number; algorithm: "halton" | "jittered_grid" | "regular_grid" | "sunflower" | "sunflower_lattice"; cross_size: number; cross_thickness: number; seed: number };
-
-export type Operation = {
-  kind: "crop" | "resize" | "grayscale" | "analyze" | "blur" |
-        "threshold" | "auto_threshold" | "morphology_ellipse" | "invert" | "format" | "tophat" | "distance_transform" | "watershed" | "centroid_markers" | "sample_points";
-  mode: "map" | "reduce";
-  params: OperationParams;
-};
 
 export interface Chain {
   id: string;

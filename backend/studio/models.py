@@ -252,6 +252,12 @@ class ChainUpdate(BaseModel):
     resource_ids: list[str] | None = None
 
 
+class ExecuteBody(BaseModel):
+    """执行请求。operations 由前端传入，不再从 JSON 文件加载。"""
+
+    operations: list[Operation]
+
+
 class PresetCreate(BaseModel):
     """创建预设请求。"""
 

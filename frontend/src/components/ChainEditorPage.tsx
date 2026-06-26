@@ -96,9 +96,11 @@ export function ChainEditorPage() {
             disabled={execState === "loading"}
             onClick={async () => {
               if (!pid || !cid) return;
+              const enabledOps = ops.filter(o => o.enabled !== false);
+              if (enabledOps.length === 0) return;
               setExecState("loading");
               try {
-                const r = await api.executeChain(pid, cid);
+                const r = await api.executeChain(pid, cid, enabledOps);
                 setExecResult(r);
                 setExecRev(v => v + 1);
                 setExecState("idle");
@@ -198,6 +200,11 @@ export function ChainEditorPage() {
                   <SortableContext items={opIds} strategy={verticalListSortingStrategy}>
                     {ops.map((op, i) => (
                       <SortableOpItem key={opIds[i]} id={opIds[i]} op={op} isSelected={selectedOpIdx === i} onSelect={() => setSelectedOpIdx(i)}
+                        onToggle={() => {
+                          const next = ops.map((o, j) => j === i ? { ...o, enabled: !o.enabled } : o);
+                          setChain({ ...chain, operations: next });
+                          saveOps(next);
+                        }}
                         onDelete={() => {
                           const next = ops.filter((_, j) => j !== i);
                           const nextIds = opIds.filter((_, j) => j !== i);
@@ -213,7 +220,7 @@ export function ChainEditorPage() {
               <AddOpPicker onAdd={(kind) => {
                 const template = OP_KINDS.find(k => k.kind === kind);
                 if (!template) return;
-                const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams };
+                const newOp: Operation = { kind, mode: template.mode, params: template.params as OperationParams, enabled: true };
                 const nextOps = [...ops, newOp];
                 setChain({ ...chain, operations: nextOps });
                 setOpIds([...opIds, `op-${nextId.current++}`]);
