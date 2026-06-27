@@ -61,7 +61,7 @@ export function ChainEditorPage() {
   const saveOps = useCallback((ops: Operation[]) => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      if (pid && cid) api.updateChain(pid, cid, { operations: ops }).then(setChain);
+      if (pid && cid) api.updateChain(pid, cid, { operations: ops });
     }, 200);
   }, [pid, cid]);
 
@@ -201,7 +201,7 @@ export function ChainEditorPage() {
                     {ops.map((op, i) => (
                       <SortableOpItem key={opIds[i]} id={opIds[i]} op={op} isSelected={selectedOpIdx === i} onSelect={() => setSelectedOpIdx(i)}
                         onToggle={() => {
-                          const next = ops.map((o, j) => j === i ? { ...o, enabled: o.enabled === false ? true : false } : o);
+                          const next = ops.map((o, j) => j === i ? { ...o, enabled: o.enabled === false } : o);
                           setChain({ ...chain, operations: next });
                           saveOps(next);
                         }}
