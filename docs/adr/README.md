@@ -4,6 +4,8 @@
 
 ## 索引
 
+- [0001 — 为链执行引入按步缓存](0001-step-cache-for-chain-execution.md)
+
 ## 状态值
 
 - **Proposed** — 草拟中，未决
