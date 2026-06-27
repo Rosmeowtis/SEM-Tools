@@ -201,7 +201,7 @@ export function ChainEditorPage() {
                     {ops.map((op, i) => (
                       <SortableOpItem key={opIds[i]} id={opIds[i]} op={op} isSelected={selectedOpIdx === i} onSelect={() => setSelectedOpIdx(i)}
                         onToggle={() => {
-                          const next = ops.map((o, j) => j === i ? { ...o, enabled: !o.enabled } : o);
+                          const next = ops.map((o, j) => j === i ? { ...o, enabled: o.enabled === false ? true : false } : o);
                           setChain({ ...chain, operations: next });
                           saveOps(next);
                         }}
