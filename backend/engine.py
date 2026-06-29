@@ -23,7 +23,7 @@ from typing import Callable, cast
 import cv2
 import numpy as np
 from PIL import Image
-from studio.models import FormatOp, OpBase, ReduceOpBase
+from studio.models import FormatOp, OpBase, Operation, ReduceOpBase
 from studio.operations import (
     apply_map_op,
     reduce_accumulate,
@@ -148,7 +148,7 @@ def run_pipeline(
 
 def execute_chain(
     resource_paths: list[tuple[str, str, Path]],
-    operations: "list[OpBase]",
+    operations: "list[Operation]",
     export_dir: Path,
     on_progress: Callable[[int], None] | None = None,
 ) -> BytesIO:
@@ -195,7 +195,7 @@ def execute_chain(
 
 def execute_and_preview(
     resource_paths: list[tuple[str, str, Path]],
-    operations: "list[OpBase]",
+    operations: "list[Operation]",
     thumb_dir: Path,
     prefix: str,
 ) -> dict:
