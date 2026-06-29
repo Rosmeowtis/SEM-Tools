@@ -78,6 +78,7 @@ from studio.models import (
     ChainCreate,
     ChainUpdate,
     ExecuteBody,
+    ExportBody,
     PresetCreate,
     PresetUpdate,
     ProjectCreate,
@@ -389,11 +390,12 @@ def delete_chain(pid: str, cid: str):
 
 
 @app.post("/api/projects/{pid}/chains/{cid}/export")
-async def export_chain(pid: str, cid: str, rid: str | None = None):
+async def export_chain(pid: str, cid: str, body: ExportBody):
     """导出处理结果为 ZIP 包。
 
-    Args:
-        rid: 可选，只导出单张资源；不传则导出链绑定的全部资源。
+    operations 由前端传入，与 execute 同源。
+    chain.json 仅作持久化保存，不再参与导出。
+    全量导出链绑定的全部资源。
     """
     p = db_get_project(pid)
     if not p:
@@ -402,14 +404,14 @@ async def export_chain(pid: str, cid: str, rid: str | None = None):
     if not chain:
         raise HTTPException(404, "Chain not found")
 
-    cf = _chain_file(pid, p["slug"], cid)
-    operations = json.loads(cf.read_text()) if cf.exists() else []
+    operations = body.operations
 
     resource_ids = json.loads(chain["resource_ids_json"])
-    targets = [rid] if rid and rid in resource_ids else resource_ids
+    if not resource_ids:
+        raise HTTPException(400, "No resources found")
 
     resource_paths = []
-    for rid in targets:
+    for rid in resource_ids:
         r = db_get_resource(rid, pid)
         if r:
             orig = (

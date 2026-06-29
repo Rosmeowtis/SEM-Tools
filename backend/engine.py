@@ -8,24 +8,28 @@
 - **ChainState**：管理所有 reduce 累加器 + TextBuffer（人类可读的分析报告）。
 - **run_pipeline**：统一管道函数，execute_chain 和 execute_and_preview
   共享此核心，仅通过 per_resource 回调区分保存逻辑。
+
+operations 参数现在接受 Pydantic 模型实例（list[OpBase]），使用属性访问
+（op.kind / op.mode / op.params）替代原来的 dict API（op["kind"] 等），
+以支持类型安全并消除 execute 入口的 AttributeError。
 """
 
 import json
 import zipfile
 from io import BytesIO
+from pathlib import Path
+from typing import Callable, cast
 
 import cv2
 import numpy as np
-from pathlib import Path
-from typing import Callable
 from PIL import Image
-
+from studio.models import FormatOp, OpBase, ReduceOpBase
 from studio.operations import (
     apply_map_op,
-    reduce_init,
     reduce_accumulate,
     reduce_finalize,
     reduce_format,
+    reduce_init,
 )
 
 
@@ -62,16 +66,22 @@ class ChainState:
     - text：获取人类可读的分析报告文本。
     """
 
-    def __init__(self, operations: list[dict]):
+    def __init__(self, operations: "list[OpBase]"):
         self._ops = operations
-        self._acc: dict[int, dict] = {}
+        self._acc: dict[int, dict] = {}  # 只有 reduce op 会进入 self._acc
         self._text_lines: list[str] = []
         for i, op in enumerate(operations):
-            if op.get("mode") == "reduce":
+            if op.mode == "reduce":
+                op: ReduceOpBase = cast(ReduceOpBase, op)
                 self._acc[i] = reduce_init(op)
 
     def accumulate(
-        self, idx: int, op: dict, img: np.ndarray, rid: str, filename: str = ""
+        self,
+        idx: int,
+        op: "ReduceOpBase",
+        img: np.ndarray,
+        rid: str,
+        filename: str = "",
     ):
         """Reduce 操作在当前位置采集图像数据。"""
         if idx in self._acc:
@@ -85,13 +95,14 @@ class ChainState:
         """
         results: dict[str, dict] = {}
         for i, op in enumerate(self._ops):
-            if i in self._acc:
-                key = f"{op['kind']}-{i}"
+            if i in self._acc:  # 只有 reduce op 会进入 self._acc
+                op: ReduceOpBase = cast(ReduceOpBase, op)
+                key = f"{op.kind}-{i}"
                 results[key] = reduce_finalize(op, self._acc[i])
-                op_type = op["params"].get("type", "?")
+                op_type = getattr(op.params, "type", "?")
                 text = reduce_format(op, results[key])
                 if text:
-                    self._text_lines.append(f"# {op['kind']}-{i} ({op_type})\n{text}\n")
+                    self._text_lines.append(f"# {op.kind}-{i} ({op_type})\n{text}\n")
         return results
 
     @property
@@ -102,7 +113,7 @@ class ChainState:
 
 def run_pipeline(
     resource_paths: list[tuple[str, str, Path]],
-    operations: list[dict],
+    operations: "list[OpBase]",
     state: ChainState,
     per_resource: Callable[[int, str, str, np.ndarray], None],
     on_progress: Callable[[int], None] | None = None,
@@ -115,7 +126,7 @@ def run_pipeline(
 
     Args:
         resource_paths: (rid, filename, path) 元组列表。
-        operations: 操作列表（按顺序执行）。
+        operations: Operation 实例列表（按顺序执行）。
         state: ChainState 实例。
         per_resource: 每张图像处理完毕后的回调 (idx, rid, filename, img)。
         on_progress: 进度回调 (0-100)。
@@ -124,7 +135,8 @@ def run_pipeline(
     for idx, (rid, filename, rpath) in enumerate(resource_paths):
         img = load_image(rpath)
         for i, op in enumerate(operations):
-            if op.get("mode") == "reduce":
+            if op.mode == "reduce":
+                op: ReduceOpBase = cast(ReduceOpBase, op)
                 state.accumulate(i, op, img, rid, filename)
             else:
                 img = apply_map_op(img, op)
@@ -136,7 +148,7 @@ def run_pipeline(
 
 def execute_chain(
     resource_paths: list[tuple[str, str, Path]],
-    operations: list[dict],
+    operations: "list[OpBase]",
     export_dir: Path,
     on_progress: Callable[[int], None] | None = None,
 ) -> BytesIO:
@@ -144,16 +156,18 @@ def execute_chain(
 
     Args:
         resource_paths: 资源路径列表。
-        operations: 操作列表。
+        operations: Operation 实例列表。
         export_dir: 临时输出目录。
         on_progress: 进度回调。
 
     Returns:
         包含导出文件的 ZIP 字节流 BytesIO。
     """
-    fmt_op = next((op for op in operations if op["kind"] == "format"), None)
-    output_fmt = fmt_op["params"]["type"] if fmt_op else "png"
-    quality = fmt_op["params"].get("quality", 85) if fmt_op else 85
+    fmt_op: FormatOp = cast(
+        FormatOp, next((op for op in operations if op.kind == "format"), None)
+    )
+    output_fmt = fmt_op.params.type if fmt_op else "png"
+    quality = getattr(fmt_op.params, "quality", 85) if fmt_op else 85
 
     state = ChainState(operations)
     output_paths: list[Path] = []
@@ -181,7 +195,7 @@ def execute_chain(
 
 def execute_and_preview(
     resource_paths: list[tuple[str, str, Path]],
-    operations: list[dict],
+    operations: "list[OpBase]",
     thumb_dir: Path,
     prefix: str,
 ) -> dict:
@@ -189,7 +203,7 @@ def execute_and_preview(
 
     Args:
         resource_paths: 资源路径列表。
-        operations: 操作列表。
+        operations: Operation 实例列表。
         thumb_dir: 缩略图缓存目录。
         prefix: 文件名前缀（通常为 "execute-{pid}-{cid}"）。
 

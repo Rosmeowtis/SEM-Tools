@@ -113,9 +113,13 @@ export function ChainEditorPage() {
           <button className={"px-4 py-1.5 text-white rounded text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors " + (exportState === "loading" ? "bg-green-500 animate-pulse" : exportState === "error" ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600")}
             disabled={exportState === "loading"}
             onClick={async () => {
+              if (!pid || !cid) return;
+              const enabledOps = ops.filter(o => o.enabled !== false);
+              if (enabledOps.length === 0) return;
               setExportState("loading");
               try {
-                const r = await fetch(api.exportUrl(pid!, cid!), { method: "POST" });
+                const r = await api.exportChainZip(pid!, cid!, enabledOps);
+                if (!r.ok) throw new Error(`${r.status}`);
                 const blob = await r.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");

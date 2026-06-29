@@ -115,6 +115,14 @@ export const api = {
         body: JSON.stringify({ operations: operations.map(stripOp) }),
       }),
 
+  /** 全量导出为 ZIP。operations 从前端传入，与 execute 同源。返回原始 Response 供 .blob() 使用。 */
+  exportChainZip: (pid: string, cid: string, operations: Operation[]) =>
+    fetch(`${BASE}/projects/${pid}/chains/${cid}/export`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ operations: operations.map(stripOp) }),
+    }),
+
   /** 执行结果缩略图 URL。 */
   executeThumbUrl: (pid: string, cid: string, idx: number) =>
     `${BASE}/projects/${pid}/chains/${cid}/execute-thumb/${idx}`,

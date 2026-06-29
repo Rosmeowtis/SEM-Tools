@@ -118,96 +118,108 @@ class SamplePointsParams(BaseModel):
     seed: int = 0
 
 
+# --- Operation 基类 ---
+
+
+class OpBase(BaseModel):
+    """所有 Operation 的共享基类，提供统一的属性访问契约供引擎使用。
+
+    子类按是否修改图像分为 MapOpBase（逐图变换）和 ReduceOpBase（跨图聚合）。
+    引擎通过 op.kind / op.mode / op.params 访问 operation，无需关心具体子类型。
+    """
+
+    kind: str
+    mode: Literal["map", "reduce"]
+    params: BaseModel
+
+
+class MapOpBase(OpBase):
+    """Map 类 Operation 基类。逐图像独立变换，输出与输入等量的图像。"""
+
+    mode: Literal["map"] = "map"
+
+
+class ReduceOpBase(OpBase):
+    """Reduce 类 Operation 基类。跨图像聚合分析，不产生中间图像。"""
+
+    mode: Literal["reduce"] = "reduce"
+
+
 # --- Discriminated union of operations ---
 
 
-class CropOp(BaseModel):
+class CropOp(MapOpBase):
     kind: Literal["crop"] = "crop"
-    mode: Literal["map"] = "map"
     params: CropParams = Field(default_factory=CropParams)
 
 
-class ResizeOp(BaseModel):
+class ResizeOp(MapOpBase):
     kind: Literal["resize"] = "resize"
-    mode: Literal["map"] = "map"
     params: ResizeParams = Field(default_factory=ResizeParams)
 
 
-class GrayscaleOp(BaseModel):
+class GrayscaleOp(MapOpBase):
     kind: Literal["grayscale"] = "grayscale"
-    mode: Literal["map"] = "map"
     params: GrayscaleParams = Field(default_factory=GrayscaleParams)
 
 
-class AnalyzeOp(BaseModel):
+class AnalyzeOp(ReduceOpBase):
     kind: Literal["analyze"] = "analyze"
-    mode: Literal["reduce"] = "reduce"
     params: AnalyzeParams = Field(default_factory=AnalyzeParams)
 
 
-class BlurOp(BaseModel):
+class BlurOp(MapOpBase):
     kind: Literal["blur"] = "blur"
-    mode: Literal["map"] = "map"
     params: BlurParams = Field(default_factory=BlurParams)
 
 
-class ThresholdOp(BaseModel):
+class ThresholdOp(MapOpBase):
     kind: Literal["threshold"] = "threshold"
-    mode: Literal["map"] = "map"
     params: ThresholdParams = Field(default_factory=ThresholdParams)
 
 
-class AutoThresholdOp(BaseModel):
+class AutoThresholdOp(MapOpBase):
     kind: Literal["auto_threshold"] = "auto_threshold"
-    mode: Literal["map"] = "map"
     params: AutoThresholdParams = Field(default_factory=AutoThresholdParams)
 
 
-class TophatOp(BaseModel):
+class TophatOp(MapOpBase):
     kind: Literal["tophat"] = "tophat"
-    mode: Literal["map"] = "map"
     params: TophatParams = Field(default_factory=TophatParams)
 
 
-class DistanceTransformOp(BaseModel):
+class DistanceTransformOp(MapOpBase):
     kind: Literal["distance_transform"] = "distance_transform"
-    mode: Literal["map"] = "map"
     params: DistanceTransformParams = Field(default_factory=DistanceTransformParams)
 
 
-class WatershedOp(BaseModel):
+class WatershedOp(MapOpBase):
     kind: Literal["watershed"] = "watershed"
-    mode: Literal["map"] = "map"
     params: WatershedParams = Field(default_factory=WatershedParams)
 
 
-class CentroidMarkersOp(BaseModel):
+class CentroidMarkersOp(MapOpBase):
     kind: Literal["centroid_markers"] = "centroid_markers"
-    mode: Literal["map"] = "map"
     params: CentroidMarkersParams = Field(default_factory=CentroidMarkersParams)
 
 
-class SamplePointsOp(BaseModel):
+class SamplePointsOp(MapOpBase):
     kind: Literal["sample_points"] = "sample_points"
-    mode: Literal["map"] = "map"
     params: SamplePointsParams = Field(default_factory=SamplePointsParams)
 
 
-class MorphologyOp(BaseModel):
+class MorphologyOp(MapOpBase):
     kind: Literal["morphology_ellipse"] = "morphology_ellipse"
-    mode: Literal["map"] = "map"
     params: MorphologyParams = Field(default_factory=MorphologyParams)
 
 
-class InvertOp(BaseModel):
+class InvertOp(MapOpBase):
     kind: Literal["invert"] = "invert"
-    mode: Literal["map"] = "map"
     params: InvertParams = Field(default_factory=InvertParams)
 
 
-class FormatOp(BaseModel):
+class FormatOp(MapOpBase):
     kind: Literal["format"] = "format"
-    mode: Literal["map"] = "map"
     params: FormatParams = Field(default_factory=FormatParams)
 
 
@@ -253,7 +265,13 @@ class ChainUpdate(BaseModel):
 
 
 class ExecuteBody(BaseModel):
-    """执行请求。operations 由前端传入，不再从 JSON 文件加载。"""
+    """执行/预览请求。operations 由前端传入，后端不再从 JSON 文件加载。"""
+
+    operations: list[Operation]
+
+
+class ExportBody(BaseModel):
+    """导出请求。与 execute 同：operations 由前端传入，不再读 chain.json 文件。全量导出，无 rid。"""
 
     operations: list[Operation]
 
