@@ -69,8 +69,14 @@ class ChainState:
 
     def __init__(self, operations: "list[OpBase]"):
         self._ops = operations
-        self._acc: dict[int, dict] = {}  # 只有 reduce op 会进入 self._acc
+        self._acc: dict[int, dict] = {}
         self._text_lines: list[str] = []
+        self._provenance: list[dict] = []
+        self._cur_prov: list[dict] | None = None
+        self._cur_rid: str = ""
+        self._cur_fn: str = ""
+        self._cur_step: int = 0
+        self._cur_kind: str = ""
         for i, op in enumerate(operations):
             if op.mode == "reduce":
                 op: ReduceOpBase = cast(ReduceOpBase, op)
@@ -87,6 +93,39 @@ class ChainState:
         """Reduce 操作在当前位置采集图像数据。"""
         if idx in self._acc:
             self._acc[idx] = reduce_accumulate(op, self._acc[idx], img, rid, filename)
+
+    def begin_resource(self, rid: str, filename: str):
+        """标记开始处理一张新资源，重置溯源缓冲。"""
+        self._cur_prov = []
+        self._cur_rid, self._cur_fn = rid, filename
+
+    def set_map_context(self, step: int, kind: str):
+        """run_pipeline 在每个 map op 前调用，告知当前步号与 kind。"""
+        self._cur_step, self._cur_kind = step, kind
+
+    def add_provenance(self, auto: dict):
+        """op 函数调用，记录自动推算的参数。step/kind 由 state 内部提供。"""
+        if self._cur_prov is not None:
+            self._cur_prov.append(
+                {"step": self._cur_step, "kind": self._cur_kind, **auto}
+            )
+
+    def end_resource(self):
+        """结束当前资源，若有溯源条目则归档。"""
+        if self._cur_prov:
+            self._provenance.append(
+                {
+                    "resource_id": self._cur_rid,
+                    "filename": self._cur_fn,
+                    "entries": self._cur_prov,
+                }
+            )
+        self._cur_prov = None
+
+    @property
+    def provenance(self) -> list[dict]:
+        """每资源一条的自动参数溯源记录。"""
+        return self._provenance
 
     def finalize(self) -> dict[str, dict]:
         """完成所有 reduce 聚合，填充 TextBuffer，返回机器可读的分析结果字典。
