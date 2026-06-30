@@ -162,8 +162,8 @@ export function ChainEditorPage() {
                           </thead>
                           <tbody>
                             {execResult.provenance.map((item) =>
-                              item.entries.map((entry, ei) => (
-                                <tr key={`${item.resource_id}-${ei}`} className="hover:bg-gray-50">
+                              item.entries.map((entry) => (
+                                <tr key={`${item.resource_id}-${entry.step}-${entry.kind}`} className="hover:bg-gray-50">
                                   <td className="border px-2 py-1 text-gray-500">{item.filename}</td>
                                   <td className="border px-2 py-1">{entry.step}</td>
                                   <td className="border px-2 py-1">{entry.kind}</td>
