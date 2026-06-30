@@ -193,6 +193,27 @@ def run_pipeline(
             raise
 
 
+def _format_provenance_text(provenance: list[dict]) -> str:
+    """将 provenance 列表格式化为 TAB 分隔的人可读表格。"""
+    lines = ["# provenance"]
+    all_keys: list[str] = []
+    for item in provenance:
+        for entry in item.get("entries", []):
+            for key in entry.get("params", {}):
+                if key not in all_keys:
+                    all_keys.append(key)
+    header = "resource_id\tfilename\tstep\tkind\t" + "\t".join(all_keys)
+    lines.append(header)
+    for item in provenance:
+        rid = item.get("resource_id", "")[:8]
+        fn = item.get("filename", "")
+        for entry in item.get("entries", []):
+            params = entry.get("params", {})
+            vals = "\t".join(str(params.get(k, "")) for k in all_keys)
+            lines.append(f"{rid}\t{fn}\t{entry['step']}\t{entry['kind']}\t{vals}")
+    return "\n".join(lines)
+
+
 def execute_chain(
     resource_paths: list[tuple[str, str, Path]],
     operations: "list[Operation]",
@@ -235,8 +256,14 @@ def execute_chain(
             zf.write(p, p.name)
         if results:
             zf.writestr("analysis.json", json.dumps(results, indent=2))
+        text_parts = []
         if state.text:
-            zf.writestr("analysis.txt", state.text)
+            text_parts.append(state.text)
+        if state.provenance:
+            zf.writestr("provenance.json", json.dumps(state.provenance, indent=2))
+            text_parts.append(_format_provenance_text(state.provenance))
+        if text_parts:
+            zf.writestr("analysis.txt", "\n\n".join(text_parts))
     buf.seek(0)
     logger.info("execute_chain done output_files={}", len(output_paths))
     return buf
@@ -282,4 +309,5 @@ def execute_and_preview(
     results = state.finalize()
 
     logger.info("execute_and_preview done images={}", len(images))
-    return {"images": images, "analysis": results, "text": state.text}
+    return {"images": images, "analysis": results, "text": state.text,
+            "provenance": state.provenance}
