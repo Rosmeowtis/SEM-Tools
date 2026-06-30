@@ -22,6 +22,7 @@ from typing import Callable, cast
 
 import cv2
 import numpy as np
+from loguru import logger
 from PIL import Image
 from studio.models import FormatOp, OpBase, Operation, ReduceOpBase
 from studio.operations import (
@@ -133,17 +134,21 @@ def run_pipeline(
     """
     total = len(resource_paths)
     for idx, (rid, filename, rpath) in enumerate(resource_paths):
-        img = load_image(rpath)
-        for i, op in enumerate(operations):
-            if op.mode == "reduce":
-                op: ReduceOpBase = cast(ReduceOpBase, op)
-                state.accumulate(i, op, img, rid, filename)
-            else:
-                img = apply_map_op(img, op)
-        per_resource(idx, rid, filename, img)
-        del img
-        if on_progress:
-            on_progress(int((idx + 1) / total * 100))
+        try:
+            img = load_image(rpath)
+            for i, op in enumerate(operations):
+                if op.mode == "reduce":
+                    op: ReduceOpBase = cast(ReduceOpBase, op)
+                    state.accumulate(i, op, img, rid, filename)
+                else:
+                    img = apply_map_op(img, op)
+            per_resource(idx, rid, filename, img)
+            del img
+            if on_progress:
+                on_progress(int((idx + 1) / total * 100))
+        except Exception:
+            logger.exception("pipeline failed resource={} ({})", rid, filename)
+            raise
 
 
 def execute_chain(
@@ -169,6 +174,7 @@ def execute_chain(
     output_fmt = fmt_op.params.type if fmt_op else "png"
     quality = getattr(fmt_op.params, "quality", 85) if fmt_op else 85
 
+    logger.info("execute_chain start resources={} ops={}", len(resource_paths), len(operations))
     state = ChainState(operations)
     output_paths: list[Path] = []
 
@@ -190,6 +196,7 @@ def execute_chain(
         if state.text:
             zf.writestr("analysis.txt", state.text)
     buf.seek(0)
+    logger.info("execute_chain done output_files={}", len(output_paths))
     return buf
 
 
@@ -210,6 +217,7 @@ def execute_and_preview(
     Returns:
         {"images": [{filename, index}], "analysis": {...}, "text": "..."}
     """
+    logger.info("execute_and_preview start resources={} ops={}", len(resource_paths), len(operations))
     state = ChainState(operations)
     images: list[dict] = []
 
@@ -231,4 +239,5 @@ def execute_and_preview(
     run_pipeline(resource_paths, operations, state, save_output)
     results = state.finalize()
 
+    logger.info("execute_and_preview done images={}", len(images))
     return {"images": images, "analysis": results, "text": state.text}
