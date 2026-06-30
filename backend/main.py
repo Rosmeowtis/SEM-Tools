@@ -603,4 +603,4 @@ if __name__ == "__main__":
 
     logger.add(sys.stderr, level="DEBUG",
                format="<green>{time:HH:mm:ss}</green> | <level>{level:<7}</level> | <level>{message}</level>")
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=False)
