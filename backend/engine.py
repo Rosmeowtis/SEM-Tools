@@ -313,3 +313,36 @@ def execute_and_preview(
     logger.info("execute_and_preview done images={}", len(images))
     return {"images": images, "analysis": results, "text": state.text,
             "provenance": state.provenance}
+
+
+if __name__ == "__main__":
+    """自检：验证 ChainState provenance 在 run_pipeline 中正确收集。"""
+    from studio.models import AutoThresholdOp
+
+    img = (np.random.rand(64, 64) * 255).astype(np.uint8)
+    import tempfile, os
+    with tempfile.TemporaryDirectory() as td:
+        tdir = Path(td)
+        img_path = tdir / "test.png"
+        cv2.imwrite(str(img_path), img)
+
+        ops = [AutoThresholdOp(params=AutoThresholdOp.__annotations__["params"](algorithm="left_peak", offset=0))]
+        state = ChainState(ops)
+        thumb = tdir / "thumbs"
+        thumb.mkdir()
+
+        run_pipeline([("r1", "test.png", img_path)], ops, state,
+                     lambda i, r, f, img2: None)
+
+        prov = state.provenance
+        assert len(prov) == 1, f"expected 1 provenance item, got {len(prov)}"
+        item = prov[0]
+        assert item["resource_id"] == "r1"
+        assert len(item["entries"]) == 1
+        entry = item["entries"][0]
+        assert entry["step"] == 0
+        assert entry["kind"] == "auto_threshold"
+        assert "params" in entry
+        assert "threshold" in entry["params"]
+        assert 0 <= entry["params"]["threshold"] <= 255
+        print(f"SELF-CHECK PASSED: threshold={entry['params']['threshold']}, algorithm={entry['params']['algorithm']}")
