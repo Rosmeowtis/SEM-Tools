@@ -194,24 +194,31 @@ def run_pipeline(
 
 
 def _format_provenance_text(provenance: list[dict]) -> str:
-    """将 provenance 列表格式化为 TAB 分隔的人可读表格。"""
+    """将 provenance 列表按 kind 分组格式化为 TAB 分隔表格。"""
     if not provenance:
         return ""
-    lines = ["# provenance"]
-    all_keys: list[str] = []
-    for item in provenance:
-        for entry in item.get("entries", []):
-            for key in entry.get("params", {}):
-                if key not in all_keys:
-                    all_keys.append(key)
-    header = "filename\tstep\tkind\t" + "\t".join(all_keys)
-    lines.append(header)
+
+    groups: dict[str, list[dict]] = {}
     for item in provenance:
         fn = item.get("filename", "")
         for entry in item.get("entries", []):
-            params = entry.get("params", {})
-            vals = "\t".join(str(params.get(k, "")) for k in all_keys)
-            lines.append(f"{fn}\t{entry.get('step', 0) + 1}\t{entry.get('kind', '?')}\t{vals}")
+            kind = entry.get("kind", "?")
+            groups.setdefault(kind, []).append({
+                "filename": fn,
+                "step": entry.get("step", 0) + 1,
+                "params": entry.get("params", {}),
+            })
+
+    lines = ["# provenance"]
+    for kind, entries in groups.items():
+        lines.append("")
+        lines.append(f"## {kind}")
+        param_keys = list(entries[0]["params"].keys())
+        lines.append("filename\tstep\t" + "\t".join(param_keys))
+        for e in entries:
+            vals = "\t".join(str(e["params"].get(k, "")) for k in param_keys)
+            lines.append(f"{e['filename']}\t{e['step']}\t{vals}")
+
     return "\n".join(lines)
 
 
