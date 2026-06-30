@@ -195,6 +195,8 @@ def run_pipeline(
 
 def _format_provenance_text(provenance: list[dict]) -> str:
     """将 provenance 列表格式化为 TAB 分隔的人可读表格。"""
+    if not provenance:
+        return ""
     lines = ["# provenance"]
     all_keys: list[str] = []
     for item in provenance:
@@ -210,7 +212,7 @@ def _format_provenance_text(provenance: list[dict]) -> str:
         for entry in item.get("entries", []):
             params = entry.get("params", {})
             vals = "\t".join(str(params.get(k, "")) for k in all_keys)
-            lines.append(f"{rid}\t{fn}\t{entry['step']}\t{entry['kind']}\t{vals}")
+            lines.append(f"{rid}\t{fn}\t{entry.get('step', '?')}\t{entry.get('kind', '?')}\t{vals}")
     return "\n".join(lines)
 
 
