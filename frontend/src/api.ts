@@ -5,7 +5,7 @@
 图片 URL（thumbUrl / resourceFullUrl / executeThumbUrl / executeFullUrl）
 返回字符串，直接用于 <img src>。
 */
-import type { Chain, Operation, Preset, Project, ResourceMeta } from "./types";
+import type { Chain, Operation, Preset, Project, ProvenanceItem, ResourceMeta } from "./types";
 
 /** 剥离前端专属字段，防止 Pydantic 拒绝。 */
 function stripOp(op: Operation) {
@@ -108,7 +108,7 @@ export const api = {
 
   /** 全量执行链，返回处理结果缩略图索引 + 分析数据。operations 从前端传入，后端不再读文件。 */
   executeChain: (pid: string, cid: string, operations: Operation[]) =>
-    req<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> }>(
+    req<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown>; provenance?: ProvenanceItem[] }>(
       `/projects/${pid}/chains/${cid}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

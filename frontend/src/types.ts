@@ -149,6 +149,18 @@ export const OP_KINDS = [
     fields: [{ key:"type", label:"Type", type:"select", options:["porosity","statistics","distribution"], default:"porosity", help:"porosity=白色像素占比，statistics=灰度统计量，distribution=连通域粒径分布" }] as FieldDef[] },
 ];
 
+export type ProvenanceEntry = {
+  step: number;
+  kind: string;
+  params: Record<string, unknown>;
+};
+
+export type ProvenanceItem = {
+  resource_id: string;
+  filename: string;
+  entries: ProvenanceEntry[];
+};
+
 export interface Preset {
   name: string;
   category: string[];
