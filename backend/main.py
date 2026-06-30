@@ -21,6 +21,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import cv2
+from loguru import logger
 from database import (
     add_resource,
     count_resources_by_sha1,
@@ -85,6 +86,14 @@ from studio.models import (
     new_id,
     now,
     slugify,
+)
+
+logger.add(
+    DATA_DIR / "logs" / "app.log",
+    rotation="1 MB",
+    retention=3,
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level:<7} | {message}",
 )
 
 PRESETS_DIR = DATA_DIR / "presets"
@@ -397,6 +406,7 @@ async def export_chain(pid: str, cid: str, body: ExportBody):
     chain.json 仅作持久化保存，不再参与导出。
     全量导出链绑定的全部资源。
     """
+    logger.info("export start chain={}/{}", pid, cid)
     p = db_get_project(pid)
     if not p:
         raise HTTPException(404, "Project not found")
@@ -429,6 +439,7 @@ async def export_chain(pid: str, cid: str, body: ExportBody):
     export_dir = _project_dir(pid, p["slug"]) / "output"
     buf = execute_chain(resource_paths, operations, export_dir)
 
+    logger.info("export done chain={}/{} resources={} ops={}", pid, cid, len(resource_paths), len(operations))
     name = chain.get("name", "export")
     safe_name = urllib.parse.quote(f"{name}.zip")
     return StreamingResponse(
@@ -447,6 +458,7 @@ def exec_chain(pid: str, cid: str, body: ExecuteBody):
 
     前端通过 execute-thumb/{idx} / execute-full/{idx} 获取图片。
     """
+    logger.info("execute start chain={}/{}", pid, cid)
     p = db_get_project(pid)
     if not p:
         raise HTTPException(404, "Project not found")
@@ -474,7 +486,14 @@ def exec_chain(pid: str, cid: str, body: ExecuteBody):
                 resource_paths.append((rid, r["filename"], orig))
 
     prefix = f"execute-{pid}-{cid}"
-    return execute_and_preview(resource_paths, operations, THUMB_CACHE_DIR, prefix)
+    try:
+        result = execute_and_preview(resource_paths, operations, THUMB_CACHE_DIR, prefix)
+        logger.info("execute done chain={}/{} resources={} ops={}", pid, cid, len(resource_paths), len(operations))
+        return result
+    except Exception:
+        logger.exception("execute failed chain={}/{} resources={} ops={}",
+                         pid, cid, len(resource_paths), len(operations))
+        raise HTTPException(500, "Execution failed")
 
 
 @app.get("/api/projects/{pid}/chains/{cid}/execute-thumb/{idx}")
@@ -571,6 +590,10 @@ if _static_dir.exists():
 # --- 入口点 ---
 
 if __name__ == "__main__":
+    import sys
+
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=False)
+    logger.add(sys.stderr, level="DEBUG",
+               format="<green>{time:HH:mm:ss}</green> | <level>{level:<7}</level> | <level>{message}</level>")
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
