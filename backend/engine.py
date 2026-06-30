@@ -175,12 +175,15 @@ def run_pipeline(
     for idx, (rid, filename, rpath) in enumerate(resource_paths):
         try:
             img = load_image(rpath)
+            state.begin_resource(rid, filename)
             for i, op in enumerate(operations):
                 if op.mode == "reduce":
                     op: ReduceOpBase = cast(ReduceOpBase, op)
                     state.accumulate(i, op, img, rid, filename)
                 else:
-                    img = apply_map_op(img, op)
+                    state.set_map_context(i, op.kind)
+                    img = apply_map_op(img, op, state)
+            state.end_resource()
             per_resource(idx, rid, filename, img)
             del img
             if on_progress:
