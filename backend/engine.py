@@ -317,16 +317,17 @@ def execute_and_preview(
 
 if __name__ == "__main__":
     """自检：验证 ChainState provenance 在 run_pipeline 中正确收集。"""
-    from studio.models import AutoThresholdOp
+    from studio.models import AutoThresholdOp, AutoThresholdParams
 
+    np.random.seed(42)
     img = (np.random.rand(64, 64) * 255).astype(np.uint8)
-    import tempfile, os
+    import tempfile
     with tempfile.TemporaryDirectory() as td:
         tdir = Path(td)
         img_path = tdir / "test.png"
         cv2.imwrite(str(img_path), img)
 
-        ops = [AutoThresholdOp(params=AutoThresholdOp.__annotations__["params"](algorithm="left_peak", offset=0))]
+        ops = [AutoThresholdOp(params=AutoThresholdParams(algorithm="left_peak", offset=0))]
         state = ChainState(ops)
         thumb = tdir / "thumbs"
         thumb.mkdir()
