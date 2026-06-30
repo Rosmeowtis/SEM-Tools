@@ -107,7 +107,7 @@ class ChainState:
         """op 函数调用，记录自动推算的参数。step/kind 由 state 内部提供。"""
         if self._cur_prov is not None:
             self._cur_prov.append(
-                {"step": self._cur_step, "kind": self._cur_kind, **auto}
+                {**auto, "step": self._cur_step, "kind": self._cur_kind}
             )
 
     def end_resource(self):
