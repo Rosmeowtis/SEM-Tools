@@ -149,12 +149,14 @@ export const OP_KINDS = [
     fields: [{ key:"type", label:"Type", type:"select", options:["porosity","statistics","distribution"], default:"porosity", help:"porosity=白色像素占比，statistics=灰度统计量，distribution=连通域粒径分布" }] as FieldDef[] },
 ];
 
+/** 自动推算参数溯源条目 — 每个自动决策 op 一条。 */
 export type ProvenanceEntry = {
   step: number;
   kind: string;
   params: Record<string, unknown>;
 };
 
+/** 每资源一条的溯源包装。 */
 export type ProvenanceItem = {
   resource_id: string;
   filename: string;
