@@ -24,7 +24,7 @@ export function ChainEditorPage() {
   const nextId = useRef(0);
   const [opIds, setOpIds] = useState<string[]>([]);
   const [selectedOpIdx, setSelectedOpIdx] = useState<number | null>(null);
-  const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown> } | null>(null);
+  const [execResult, setExecResult] = useState<{ images: { filename: string; index: number }[]; analysis: Record<string, unknown>; provenance?: import("../types").ProvenanceItem[] } | null>(null);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const [compareMode, setCompareMode] = useState<"off" | "side" | "overlay">("overlay");
   const [overlayOpacity, setOverlayOpacity] = useState(50);
@@ -144,8 +144,41 @@ export function ChainEditorPage() {
                   <div className="text-xs font-semibold text-gray-600 mb-1">Analysis</div>
                    <pre className="text-xs text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">{JSON.stringify(execResult.analysis, null, 2)}</pre>
                 </div>
-              )}
-              <div className="flex flex-wrap gap-3">
+               )}
+                  {execResult.provenance && execResult.provenance.length > 0 && (
+                    <details className="mb-3">
+                      <summary className="text-sm font-medium text-gray-600 cursor-pointer select-none">
+                        执行参数溯源 ({execResult.provenance.length} 条)
+                      </summary>
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-100 text-gray-600">
+                              <th className="border px-2 py-1 text-left">文件</th>
+                              <th className="border px-2 py-1 text-left">步骤</th>
+                              <th className="border px-2 py-1 text-left">操作</th>
+                              <th className="border px-2 py-1 text-left">参数</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {execResult.provenance.map((item) =>
+                              item.entries.map((entry, ei) => (
+                                <tr key={`${item.resource_id}-${ei}`} className="hover:bg-gray-50">
+                                  <td className="border px-2 py-1 text-gray-500">{item.filename}</td>
+                                  <td className="border px-2 py-1">{entry.step}</td>
+                                  <td className="border px-2 py-1">{entry.kind}</td>
+                                  <td className="border px-2 py-1 font-mono text-gray-500">
+                                    {JSON.stringify(entry.params)}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </details>
+                  )}
+               <div className="flex flex-wrap gap-3">
                 {execResult.images.map(img => (
                   <div key={img.index} className="shrink-0">
                     <img src={api.executeThumbUrl(pid!, cid!, img.index) + (execRev ? `?v=${execRev}` : '')} className="h-28 w-auto border rounded bg-white cursor-pointer hover:ring-2 hover:ring-blue-400"
