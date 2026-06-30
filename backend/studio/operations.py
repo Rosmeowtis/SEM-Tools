@@ -263,12 +263,13 @@ def op_sample_points(img: np.ndarray, params: dict) -> np.ndarray:
     return out
 
 
-def op_watershed(img: np.ndarray, params: dict) -> np.ndarray:
+def op_watershed(img: np.ndarray, params: dict, state=None) -> np.ndarray:
     """分水岭算法分离重叠颗粒。
 
     Args:
         img: 输入图像（BGR 或灰度）。
         params: {seed_thresh, bg_iterations, bg_ksize}。
+        state: 可选的 ChainState，用于记录溯源参数。
 
     Returns:
         归一化到 0-255 的分离标签灰度图。
@@ -277,7 +278,7 @@ def op_watershed(img: np.ndarray, params: dict) -> np.ndarray:
     dist = cv2.distanceTransform(gray, cv2.DIST_L2, 5)
     seed_t = params.get("seed_thresh", 0.5) * dist.max()
     _, sure_fg = cv2.threshold(dist, seed_t, 255, cv2.THRESH_BINARY)
-    _, markers = cv2.connectedComponents(sure_fg.astype(np.uint8))
+    num_labels, markers = cv2.connectedComponents(sure_fg.astype(np.uint8))
     markers = markers + 1
     ks = params.get("bg_ksize", 3)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (ks, ks))
@@ -286,6 +287,13 @@ def op_watershed(img: np.ndarray, params: dict) -> np.ndarray:
     color = img if img.ndim == 3 else cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     result = cv2.watershed(color, markers)
     result[result == -1] = 0
+    if state is not None:
+        state.add_provenance({
+            "params": {
+                "seed_threshold": float(seed_t),
+                "num_particles": int(num_labels - 1),
+            }
+        })
     return cv2.normalize(result, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)  # ty:ignore[no-matching-overload]
 
 
@@ -670,7 +678,7 @@ def reduce_format(op: "ReduceOpBase", state: dict) -> str:
     return entry["format"](state) if entry else ""
 
 
-_PROVENANCE_OPS = {"auto_threshold"}   # 未来扩展加 "watershed" 等
+_PROVENANCE_OPS = {"auto_threshold", "watershed"}
 
 _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "crop": op_crop,
