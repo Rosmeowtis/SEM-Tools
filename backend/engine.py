@@ -188,9 +188,9 @@ def run_pipeline(
             del img
             if on_progress:
                 on_progress(int((idx + 1) / total * 100))
-        except Exception:
-            logger.exception("pipeline failed resource={} ({})", rid, filename)
-            raise
+        except Exception as e:
+            logger.exception("pipeline failed resource={} ({}): {}", rid, filename, e)
+            raise e
 
 
 def _format_provenance_text(provenance: list[dict]) -> str:
