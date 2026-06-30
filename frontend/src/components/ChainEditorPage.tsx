@@ -145,39 +145,57 @@ export function ChainEditorPage() {
                    <pre className="text-xs text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">{JSON.stringify(execResult.analysis, null, 2)}</pre>
                 </div>
                )}
-                  {execResult.provenance && execResult.provenance.length > 0 && (
-                    <details className="mb-3">
-                      <summary className="text-sm font-medium text-gray-600 cursor-pointer select-none">
-                        执行参数溯源 ({execResult.provenance.length} 条)
-                      </summary>
-                      <div className="mt-2 overflow-x-auto">
-                        <table className="w-full text-xs border-collapse">
-                          <thead>
-                            <tr className="bg-gray-100 text-gray-600">
-                              <th className="border px-2 py-1 text-left">文件</th>
-                              <th className="border px-2 py-1 text-left">步骤</th>
-                              <th className="border px-2 py-1 text-left">操作</th>
-                              <th className="border px-2 py-1 text-left">参数</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {execResult.provenance.map((item) =>
-                              item.entries.map((entry) => (
-                                <tr key={`${item.resource_id}-${entry.step}-${entry.kind}`} className="hover:bg-gray-50">
-                                  <td className="border px-2 py-1 text-gray-500">{item.filename}</td>
-                                  <td className="border px-2 py-1">{entry.step + 1}</td>
-                                  <td className="border px-2 py-1">{entry.kind}</td>
-                                  <td className="border px-2 py-1 font-mono text-gray-500">
-                                    {JSON.stringify(entry.params)}
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </details>
-                  )}
+                   {execResult.provenance && execResult.provenance.length > 0 && (
+                     <details className="mb-3">
+                       <summary className="text-sm font-medium text-gray-600 cursor-pointer select-none">
+                         执行参数溯源
+                       </summary>
+                       <div className="mt-2 space-y-3">
+                         {Array.from(
+                           execResult.provenance.flatMap(item =>
+                             item.entries.map(e => ({ ...e, filename: item.filename }))
+                           ).reduce((map, e) => {
+                             if (!map.has(e.kind)) map.set(e.kind, []);
+                             map.get(e.kind)!.push(e);
+                             return map;
+                           }, new Map<string, { filename: string; step: number; kind: string; params: Record<string, unknown> }[]>())
+                         ).map(([kind, entries]) => {
+                           const paramKeys = Object.keys(entries[0]?.params ?? {});
+                           return (
+                             <details key={kind}>
+                               <summary className="text-xs font-medium text-gray-500 cursor-pointer select-none">
+                                 {kind} ({entries.length} 条)
+                               </summary>
+                               <div className="mt-1 overflow-x-auto">
+                                 <table className="w-full text-xs border-collapse">
+                                   <thead>
+                                     <tr className="bg-gray-100 text-gray-600">
+                                       <th className="border px-2 py-1 text-left">文件</th>
+                                       <th className="border px-2 py-1 text-left">步骤</th>
+                                       {paramKeys.map(k => <th key={k} className="border px-2 py-1 text-left">{k}</th>)}
+                                     </tr>
+                                   </thead>
+                                   <tbody>
+                                     {entries.map((entry, i) => (
+                                       <tr key={i} className="hover:bg-gray-50">
+                                         <td className="border px-2 py-1 text-gray-500">{entry.filename}</td>
+                                         <td className="border px-2 py-1">{entry.step + 1}</td>
+                                         {paramKeys.map(k => (
+                                           <td key={k} className="border px-2 py-1 font-mono text-gray-500">
+                                             {String(entry.params[k] ?? '')}
+                                           </td>
+                                         ))}
+                                       </tr>
+                                     ))}
+                                   </tbody>
+                                 </table>
+                               </div>
+                             </details>
+                           );
+                         })}
+                       </div>
+                     </details>
+                   )}
                <div className="flex flex-wrap gap-3">
                 {execResult.images.map(img => (
                   <div key={img.index} className="shrink-0">
