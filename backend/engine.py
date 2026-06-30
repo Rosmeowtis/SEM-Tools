@@ -204,15 +204,14 @@ def _format_provenance_text(provenance: list[dict]) -> str:
             for key in entry.get("params", {}):
                 if key not in all_keys:
                     all_keys.append(key)
-    header = "resource_id\tfilename\tstep\tkind\t" + "\t".join(all_keys)
+    header = "filename\tstep\tkind\t" + "\t".join(all_keys)
     lines.append(header)
     for item in provenance:
-        rid = item.get("resource_id", "")[:8]
         fn = item.get("filename", "")
         for entry in item.get("entries", []):
             params = entry.get("params", {})
             vals = "\t".join(str(params.get(k, "")) for k in all_keys)
-            lines.append(f"{rid}\t{fn}\t{entry.get('step', '?')}\t{entry.get('kind', '?')}\t{vals}")
+            lines.append(f"{fn}\t{entry.get('step', 0) + 1}\t{entry.get('kind', '?')}\t{vals}")
     return "\n".join(lines)
 
 

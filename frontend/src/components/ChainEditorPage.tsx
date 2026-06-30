@@ -165,7 +165,7 @@ export function ChainEditorPage() {
                               item.entries.map((entry) => (
                                 <tr key={`${item.resource_id}-${entry.step}-${entry.kind}`} className="hover:bg-gray-50">
                                   <td className="border px-2 py-1 text-gray-500">{item.filename}</td>
-                                  <td className="border px-2 py-1">{entry.step}</td>
+                                  <td className="border px-2 py-1">{entry.step + 1}</td>
                                   <td className="border px-2 py-1">{entry.kind}</td>
                                   <td className="border px-2 py-1 font-mono text-gray-500">
                                     {JSON.stringify(entry.params)}
