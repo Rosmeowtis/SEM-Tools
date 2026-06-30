@@ -104,6 +104,7 @@ PRESETS_DIR = DATA_DIR / "presets"
 async def lifespan(_app: FastAPI):
     """应用启动时创建数据目录并初始化数据库表。"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    (DATA_DIR / "logs").mkdir(parents=True, exist_ok=True)
     THUMB_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     init_db()
     yield
@@ -438,7 +439,12 @@ async def export_chain(pid: str, cid: str, body: ExportBody):
         raise HTTPException(400, "No resources found")
 
     export_dir = _project_dir(pid, p["slug"]) / "output"
-    buf = execute_chain(resource_paths, operations, export_dir)
+    try:
+        buf = execute_chain(resource_paths, operations, export_dir)
+    except Exception:
+        logger.exception("export failed chain={}/{} resources={} ops={}",
+                         pid, cid, len(resource_paths), len(operations))
+        raise HTTPException(500, "Export failed")
 
     logger.info("export done chain={}/{} resources={} ops={}", pid, cid, len(resource_paths), len(operations))
     name = chain.get("name", "export")
