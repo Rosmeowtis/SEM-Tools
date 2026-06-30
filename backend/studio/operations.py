@@ -334,66 +334,72 @@ def op_format(img: np.ndarray, params: dict) -> np.ndarray:
     return img
 
 
-def op_auto_threshold(img: np.ndarray, params: dict) -> np.ndarray:
+def op_auto_threshold(img: np.ndarray, params: dict, state=None) -> np.ndarray:
     """自动阈值二值化：单峰左/右最大距离点 + 大津法。
 
     Args:
         img: 输入图像。
         params: {"algorithm", "offset"} — 阈值算法 + 偏移修正。
+        state: 可选的 ChainState，用于记录推算阈值。
 
     Returns:
         二值图像（0 / 255）。
     """
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     algorithm = params.get("algorithm", "left_peak")
+    offset = params.get("offset", 0)
 
     if algorithm == "otsu":
         ret, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-        offset = params.get("offset", 0)
+        effective = max(0, min(255, ret + offset))
         if offset:
-            ret = max(0, min(255, ret + offset))
-            _, binary = cv2.threshold(gray, ret, 255, cv2.THRESH_BINARY)
-        return binary
-
-    hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten().astype(np.float32)
-    peak = int(np.argmax(hist))
-
-    if algorithm == "right_peak":
-        right = 255
-        for i in range(255, peak, -1):
-            if hist[i] > 0:
-                right = i
-                break
-        max_dist = -1.0
-        best_thresh = right
-        for i in range(peak + 1, right + 1):
-            dist = abs(
-                (right - peak) * (hist[i] - hist[peak])
-                - (i - peak) * (hist[right] - hist[peak])
-            )
-            if dist > max_dist:
-                max_dist = dist
-                best_thresh = i
+            _, binary = cv2.threshold(gray, effective, 255, cv2.THRESH_BINARY)
     else:
-        left = 0
-        for i in range(peak):
-            if hist[i] > 0:
-                left = i
-                break
-        max_dist = -1.0
-        best_thresh = left
-        for i in range(left, peak):
-            dist = abs(
-                (peak - left) * (hist[i] - hist[left])
-                - (i - left) * (hist[peak] - hist[left])
-            )
-            if dist > max_dist:
-                max_dist = dist
-                best_thresh = i
+        hist = cv2.calcHist([gray], [0], None, [256], [0, 256]).flatten().astype(np.float32)
+        peak = int(np.argmax(hist))
+        if algorithm == "right_peak":
+            right = 255
+            for i in range(255, peak, -1):
+                if hist[i] > 0:
+                    right = i
+                    break
+            max_dist = -1.0
+            best_thresh = right
+            for i in range(peak + 1, right + 1):
+                dist = abs(
+                    (right - peak) * (hist[i] - hist[peak])
+                    - (i - peak) * (hist[right] - hist[peak])
+                )
+                if dist > max_dist:
+                    max_dist = dist
+                    best_thresh = i
+        else:
+            left = 0
+            for i in range(peak):
+                if hist[i] > 0:
+                    left = i
+                    break
+            max_dist = -1.0
+            best_thresh = left
+            for i in range(left, peak):
+                dist = abs(
+                    (peak - left) * (hist[i] - hist[left])
+                    - (i - left) * (hist[peak] - hist[left])
+                )
+                if dist > max_dist:
+                    max_dist = dist
+                    best_thresh = i
+        effective = max(0, min(255, best_thresh + offset))
+        _, binary = cv2.threshold(gray, effective, 255, cv2.THRESH_BINARY)
 
-    offset = params.get("offset", 0)
-    final_thresh = max(0, min(255, best_thresh + offset))
-    _, binary = cv2.threshold(gray, final_thresh, 255, cv2.THRESH_BINARY)
+    if state is not None:
+        state.add_provenance({
+            "params": {
+                "threshold": int(effective),
+                "algorithm": algorithm,
+                "offset": int(offset),
+            }
+        })
     return binary
 
 
@@ -664,6 +670,8 @@ def reduce_format(op: "ReduceOpBase", state: dict) -> str:
     return entry["format"](state) if entry else ""
 
 
+_PROVENANCE_OPS = {"auto_threshold"}   # 未来扩展加 "watershed" 等
+
 _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
     "crop": op_crop,
     "resize": op_resize,
@@ -682,16 +690,21 @@ _MAP_OPS: dict[str, callable] = {  # ty:ignore[invalid-type-form]
 }
 
 
-def apply_map_op(img: np.ndarray, op: "OpBase") -> np.ndarray:
+def apply_map_op(img: np.ndarray, op: "OpBase", state=None) -> np.ndarray:
     """通过 op.kind 查找对应的 map 操作函数并执行。
 
     Args:
         img: 输入图像。
         op: Map 类 Operation 实例。
+        state: 可选的 ChainState，用于自动决策 op 记录溯源参数。
 
     Returns:
         处理后的图像。
     """
     fn = _MAP_OPS.get(op.kind)
+    if fn is None:
+        return img
+    if op.kind in _PROVENANCE_OPS and state is not None:
+        return fn(img, op.params.model_dump(), state)
     # ponytail: model_dump() 每次分配小 dict，若 profiling 显示成本可在 run_pipeline 预 dump
-    return fn(img, op.params.model_dump()) if fn else img
+    return fn(img, op.params.model_dump())
