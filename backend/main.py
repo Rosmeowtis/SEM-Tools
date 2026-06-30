@@ -22,6 +22,7 @@ from pathlib import Path
 
 import cv2
 from loguru import logger
+from studio.config import DATA_DIR
 from database import (
     add_resource,
     count_resources_by_sha1,
@@ -74,7 +75,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from studio.config import DATA_DIR, THUMB_CACHE_DIR
+from studio.config import THUMB_CACHE_DIR
 from studio.models import (
     ChainCreate,
     ChainUpdate,
